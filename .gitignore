@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.cache/
+.env
+.venv/
+*.pkl
+.DS_Store
+.claude/
+start.sh

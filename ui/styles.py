@@ -1,0 +1,160 @@
+"""
+Custom CSS styles for the Streamlit app.
+"""
+
+CUSTOM_CSS = """
+<style>
+    /* Main container */
+    .main .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 1rem;
+    }
+
+    /* Metric cards */
+    .metric-card {
+        background: #1e1e2e;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin: 6px 0;
+        border-left: 4px solid #666;
+    }
+    .metric-card.bullish { border-left-color: #00C853; }
+    .metric-card.bearish { border-left-color: #FF1744; }
+    .metric-card.neutral { border-left-color: #FFC107; }
+
+    .metric-card .metric-name {
+        font-size: 0.85rem;
+        color: #aaa;
+        margin-bottom: 4px;
+    }
+    .metric-card .metric-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .metric-card .metric-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .metric-card .metric-explanation {
+        font-size: 0.78rem;
+        color: #bbb;
+        margin-top: 4px;
+    }
+
+    /* Verdict banner */
+    .verdict-banner {
+        border-radius: 16px;
+        padding: 28px 32px;
+        text-align: center;
+        margin: 16px 0;
+    }
+    .verdict-banner.strong-buy {
+        background: linear-gradient(135deg, #004d25, #00C853);
+        color: white;
+    }
+    .verdict-banner.buy {
+        background: linear-gradient(135deg, #1b5e20, #4CAF50);
+        color: white;
+    }
+    .verdict-banner.hold {
+        background: linear-gradient(135deg, #e65100, #FFC107);
+        color: white;
+    }
+    .verdict-banner.sell {
+        background: linear-gradient(135deg, #b71c1c, #FF5252);
+        color: white;
+    }
+    .verdict-banner.strong-sell {
+        background: linear-gradient(135deg, #4a0000, #FF1744);
+        color: white;
+    }
+    .verdict-banner h1 {
+        margin: 0;
+        font-size: 2.2rem;
+    }
+    .verdict-banner .confidence {
+        font-size: 1rem;
+        opacity: 0.9;
+        margin-top: 6px;
+    }
+
+    /* Score badge */
+    .score-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .score-badge.green { background: #00C853; color: white; }
+    .score-badge.red { background: #FF1744; color: white; }
+    .score-badge.amber { background: #FFC107; color: #333; }
+
+    /* Position card */
+    .position-card {
+        background: #1e1e2e;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin: 12px 0;
+        border: 1px solid #333;
+    }
+
+    /* News items */
+    .news-item {
+        padding: 8px 0;
+        border-bottom: 1px solid #333;
+        font-size: 0.9rem;
+    }
+
+    /* Pattern signal */
+    .pattern-signal {
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin: 4px 0;
+        font-size: 0.85rem;
+    }
+    .pattern-signal.bullish { background: rgba(0, 200, 83, 0.15); border-left: 3px solid #00C853; }
+    .pattern-signal.bearish { background: rgba(255, 23, 68, 0.15); border-left: 3px solid #FF1744; }
+    .pattern-signal.neutral { background: rgba(255, 193, 7, 0.15); border-left: 3px solid #FFC107; }
+
+    /* Target card */
+    .target-card {
+        background: #1e1e2e;
+        border-radius: 12px;
+        padding: 16px 20px;
+        text-align: center;
+        border: 1px solid #333;
+    }
+    .target-card .label {
+        font-size: 0.8rem;
+        color: #aaa;
+        margin-bottom: 4px;
+    }
+    .target-card .price {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+    .target-card .price.green { color: #00C853; }
+    .target-card .price.red { color: #FF1744; }
+    .target-card .price.amber { color: #FFC107; }
+
+    /* Company header */
+    .company-header {
+        padding: 8px 0 16px 0;
+    }
+    .company-header h1 {
+        margin-bottom: 0;
+    }
+    .company-header .subtitle {
+        color: #aaa;
+        font-size: 0.9rem;
+    }
+</style>
+"""
+
+
+def inject_css():
+    """Inject custom CSS into the Streamlit app."""
+    import streamlit as st
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
