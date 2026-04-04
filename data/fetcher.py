@@ -4,6 +4,7 @@ Unified data fetcher that orchestrates all data providers.
 
 from dataclasses import dataclass, field
 import pandas as pd
+import numpy as np
 
 from data.yfinance_provider import (
     get_stock_info,
@@ -66,11 +67,24 @@ def fetch_all(ticker: str, period: str = "1y") -> StockData:
         data.google_data = get_google_finance_data(gf_symbol, gf_exchange)
 
         # Supplement yfinance data with Google Finance where missing
-        if data.google_data.get("current_price") and not data.info.get("current_price"):
-            data.info["current_price"] = data.google_data["current_price"]
+        gd = data.google_data
+        if gd.get("current_price") and not data.info.get("current_price"):
+            data.info["current_price"] = gd["current_price"]
 
-        if data.google_data.get("about") and not data.info.get("long_description"):
-            data.info["long_description"] = data.google_data["about"]
+        if gd.get("about") and not data.info.get("long_description"):
+            data.info["long_description"] = gd["about"]
+
+        if gd.get("sector") and data.info.get("sector") in (None, "N/A", ""):
+            data.info["sector"] = gd["sector"]
+
+        if gd.get("industry") and data.info.get("industry") in (None, "N/A", ""):
+            data.info["industry"] = gd["industry"]
+
+        if gd.get("employees") and not data.info.get("employees"):
+            data.info["employees"] = gd["employees"]
+
+        if gd.get("ceo"):
+            data.info["ceo"] = gd["ceo"]
     except Exception as e:
         data.errors.append(f"Google Finance: {e}")
 
@@ -81,4 +95,40 @@ def fetch_all(ticker: str, period: str = "1y") -> StockData:
     except Exception as e:
         data.errors.append(f"NSE shareholding: {e}")
 
+    # 7. Compute Beta from historical data if missing
+    if not data.info.get("beta") and not data.history.empty:
+        try:
+            data.info["beta"] = _compute_beta(data.history, ticker)
+        except Exception:
+            pass
+
     return data
+
+
+def _compute_beta(stock_history: pd.DataFrame, ticker: str) -> float:
+    """Compute beta against NIFTY 50 index."""
+    import yfinance as yf
+    index_ticker = "^NSEI"  # NIFTY 50
+    try:
+        nifty = yf.Ticker(index_ticker).history(period="1y")
+        if nifty.empty:
+            return None
+        nifty.columns = [c.lower().replace(" ", "_") for c in nifty.columns]
+
+        stock_ret = stock_history["close"].pct_change().dropna()
+        nifty_ret = nifty["close"].pct_change().dropna()
+
+        # Align dates
+        common = stock_ret.index.intersection(nifty_ret.index)
+        if len(common) < 30:
+            return None
+        s = stock_ret.loc[common]
+        n = nifty_ret.loc[common]
+
+        covariance = np.cov(s, n)[0][1]
+        variance = np.var(n)
+        if variance == 0:
+            return None
+        return round(covariance / variance, 2)
+    except Exception:
+        return None
