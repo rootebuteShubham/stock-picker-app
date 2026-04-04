@@ -153,6 +153,64 @@ def _cluster_levels(prices: list, reference_price: float) -> list:
     return clusters
 
 
+def compute_fibonacci_levels(df: pd.DataFrame, trend: str) -> dict:
+    """
+    Compute Fibonacci retracement levels from the last major swing.
+
+    Per "The Candlestick Trading Bible" (pages 120, 154):
+    After a trending move, Fib levels (38.2%, 50%, 61.8%) act as confluence zones.
+    Patterns forming at these levels have higher probability.
+
+    Returns:
+        dict with: swing_high, swing_low, fib_382, fib_500, fib_618, levels (list)
+    """
+    result = {"swing_high": None, "swing_low": None, "fib_382": None, "fib_500": None, "fib_618": None, "levels": []}
+
+    swing_highs, swing_lows = find_swing_points(df, window=5)
+
+    if not swing_highs or not swing_lows:
+        return result
+
+    if trend == "uptrend":
+        # In uptrend: retrace from recent high down to recent low
+        swing_high = max(swing_highs, key=lambda x: x[1])[1]
+        # Find the most recent swing low BEFORE the high
+        recent_lows = [p for _, p in swing_lows]
+        swing_low = min(recent_lows[-3:]) if len(recent_lows) >= 3 else min(recent_lows)
+    elif trend == "downtrend":
+        # In downtrend: retrace from recent low up to recent high
+        swing_low = min(swing_lows, key=lambda x: x[1])[1]
+        recent_highs = [p for _, p in swing_highs]
+        swing_high = max(recent_highs[-3:]) if len(recent_highs) >= 3 else max(recent_highs)
+    else:
+        # Ranging: use overall high and low
+        swing_high = max(p for _, p in swing_highs)
+        swing_low = min(p for _, p in swing_lows)
+
+    diff = swing_high - swing_low
+    if diff <= 0:
+        return result
+
+    result["swing_high"] = swing_high
+    result["swing_low"] = swing_low
+
+    for level in settings.FIB_LEVELS:
+        if trend == "uptrend":
+            # Retracement levels below the high
+            fib_price = swing_high - (diff * level)
+        else:
+            # Retracement levels above the low
+            fib_price = swing_low + (diff * level)
+        result["levels"].append(fib_price)
+
+    if len(result["levels"]) >= 3:
+        result["fib_382"] = result["levels"][0]
+        result["fib_500"] = result["levels"][1]
+        result["fib_618"] = result["levels"][2]
+
+    return result
+
+
 def is_near_level(price: float, levels: list, tolerance_pct: float = 0.02) -> tuple:
     """
     Check if price is near any support/resistance level.

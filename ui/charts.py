@@ -18,6 +18,8 @@ def build_candlestick_chart(
     sma_200: pd.Series = None,
     bb_upper: pd.Series = None,
     bb_lower: pd.Series = None,
+    ema_21: pd.Series = None,
+    fib_levels: dict = None,
 ) -> go.Figure:
     """Build interactive candlestick chart with overlays."""
     fig = make_subplots(
@@ -61,6 +63,29 @@ def build_candlestick_chart(
             line=dict(color="#9C27B0", width=2),
             opacity=0.8,
         ), row=1, col=1)
+
+    # 21-EMA: Dynamic S/R per "The Candlestick Trading Bible" (pages 88-91)
+    if ema_21 is not None and not ema_21.empty:
+        fig.add_trace(go.Scatter(
+            x=df.index, y=ema_21, name="EMA 21 (Dynamic S/R)",
+            line=dict(color="#FF9800", width=1.5, dash="dash"),
+            opacity=0.85,
+        ), row=1, col=1)
+
+    # Fibonacci Retracement Levels (pages 120, 154)
+    if fib_levels and fib_levels.get("fib_382"):
+        fib_colors = {"38.2%": "#78909C", "50.0%": "#546E7A", "61.8%": "#37474F"}
+        for label, key in [("38.2%", "fib_382"), ("50.0%", "fib_500"), ("61.8%", "fib_618")]:
+            val = fib_levels.get(key)
+            if val:
+                fig.add_hline(
+                    y=val, row=1, col=1,
+                    line=dict(color=fib_colors[label], width=1, dash="dot"),
+                    annotation_text=f"Fib {label}: ₹{val:,.0f}",
+                    annotation_position="top right",
+                    annotation_font_size=9,
+                    annotation_font_color=fib_colors[label],
+                )
 
     # Bollinger Bands
     if bb_upper is not None and not bb_upper.empty and bb_lower is not None and not bb_lower.empty:
@@ -133,6 +158,7 @@ def _add_pattern_markers(fig: go.Figure, df: pd.DataFrame, patterns: dict):
         "hammer_shooting_star": {100: "H", -100: "SS"},
         "inside_bar": {50: "IB"},
         "tweezers": {100: "TB", -100: "TT"},
+        "false_breakout": {100: "FB", -100: "FB"},
     }
 
     for pattern_key, signals in patterns.items():

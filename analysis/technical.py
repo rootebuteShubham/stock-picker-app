@@ -36,6 +36,7 @@ class TechnicalResult:
     sma_20: pd.Series = field(default_factory=pd.Series)
     sma_50: pd.Series = field(default_factory=pd.Series)
     sma_200: pd.Series = field(default_factory=pd.Series)
+    ema_21: pd.Series = field(default_factory=pd.Series)  # Dynamic S/R per the book
     rsi: pd.Series = field(default_factory=pd.Series)
     macd_line: pd.Series = field(default_factory=pd.Series)
     macd_signal: pd.Series = field(default_factory=pd.Series)
@@ -124,6 +125,7 @@ def analyze(df: pd.DataFrame) -> TechnicalResult:
     sma_20 = _compute_sma(close, settings.SMA_SHORT)
     sma_50 = _compute_sma(close, settings.SMA_MEDIUM)
     sma_200 = _compute_sma(close, settings.SMA_LONG) if len(df) >= 200 else pd.Series(dtype=float)
+    ema_21 = _compute_ema(close, settings.EMA_DYNAMIC_SR)  # 21-EMA: dynamic S/R per the book
     macd_line, macd_signal, macd_hist = _compute_macd(close, settings.MACD_FAST, settings.MACD_SLOW, settings.MACD_SIGNAL)
     rsi = _compute_rsi(close)
     bb_upper, bb_middle, bb_lower = _compute_bollinger(close, settings.BB_PERIOD, settings.BB_STD)
@@ -133,6 +135,7 @@ def analyze(df: pd.DataFrame) -> TechnicalResult:
     result.sma_20 = sma_20
     result.sma_50 = sma_50
     result.sma_200 = sma_200
+    result.ema_21 = ema_21
     result.rsi = rsi
     result.macd_line = macd_line
     result.macd_signal = macd_signal

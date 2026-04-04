@@ -75,6 +75,21 @@ ENGULFING_MIN_BODY_RATIO = 0.6  # Minimum body as % of total range
 TWEEZER_TOLERANCE_PCT = 0.002   # 0.2% tolerance for matching highs/lows
 SMALL_BODY_RATIO = 0.3          # For star patterns - middle candle body
 
+# ─── Advanced Candlestick Strategies (from "The Candlestick Trading Bible") ──
+
+# 21-EMA as dynamic support/resistance (PDF pages 88-91)
+EMA_DYNAMIC_SR = 21
+MA_PROXIMITY_PCT = 0.015        # 1.5% proximity to 21-MA for confluence
+MA_CONFLUENCE_BOOST = 10        # Score boost when pattern is near 21-MA
+
+# Fibonacci retracement levels (PDF pages 120, 154)
+FIB_LEVELS = [0.382, 0.500, 0.618]
+FIB_PROXIMITY_PCT = 0.015       # 1.5% proximity to Fib level for confluence
+FIB_CONFLUENCE_BOOST = 8        # Score boost when pattern is near Fib level
+
+# False breakout detection (PDF pages 148-158)
+FALSE_BREAKOUT_LOOKFORWARD = 2  # Check next 2 candles after inside bar
+
 # ─── Scoring Weights ──────────────────────────────────────────────────────────
 
 WEIGHT_FUNDAMENTAL = 0.50

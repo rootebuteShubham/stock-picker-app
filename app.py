@@ -15,7 +15,7 @@ from data.fetcher import fetch_all
 from analysis.fundamental import analyze as analyze_fundamentals
 from analysis.technical import analyze as analyze_technicals
 from analysis.candlestick_patterns import detect_all_patterns, score_candlestick_signals, get_recent_signals
-from analysis.market_structure import identify_trend, find_support_resistance
+from analysis.market_structure import identify_trend, find_support_resistance, compute_fibonacci_levels
 from analysis.verdict import generate_verdict
 from ui.styles import inject_css
 from ui.components import (
@@ -154,6 +154,7 @@ if analyze_btn:
         patterns = detect_all_patterns(stock_data.history)
         market_struct = identify_trend(stock_data.history)
         sr_levels = find_support_resistance(stock_data.history)
+        fib_levels = compute_fibonacci_levels(stock_data.history, market_struct["trend"])
 
         candle_score = score_candlestick_signals(
             patterns,
@@ -161,6 +162,9 @@ if analyze_btn:
             sr_levels["support_levels"],
             sr_levels["resistance_levels"],
             sr_levels["current_price"],
+            ema_21=technical_result.ema_21,
+            fib_levels=fib_levels,
+            df=stock_data.history,
         )
 
     with st.spinner("Generating verdict..."):
@@ -186,6 +190,7 @@ if analyze_btn:
     st.session_state["candle_score"] = candle_score
     st.session_state["final_verdict"] = final_verdict
     st.session_state["current_price"] = current_price
+    st.session_state["fib_levels"] = fib_levels
 
 # ─── Display Results ─────────────────────────────────────────────────────────
 
@@ -199,6 +204,7 @@ if "stock_data" in st.session_state:
     candle_score = st.session_state["candle_score"]
     final_verdict = st.session_state["final_verdict"]
     current_price = st.session_state["current_price"]
+    fib_levels = st.session_state.get("fib_levels", {})
 
     # Company header
     render_company_header(stock_data.info, stock_data.google_data)
@@ -323,6 +329,8 @@ if "stock_data" in st.session_state:
             sma_200=technical_result.sma_200,
             bb_upper=technical_result.bb_upper,
             bb_lower=technical_result.bb_lower,
+            ema_21=technical_result.ema_21,
+            fib_levels=fib_levels,
         )
         st.plotly_chart(fig_candle, use_container_width=True)
 
@@ -350,6 +358,29 @@ if "stock_data" in st.session_state:
         st.markdown(f"**Candlestick Verdict: {candle_score['verdict']}** (Score: {candle_score['score']})")
         st.markdown(candle_score["explanation"])
         render_pattern_signals(candle_score["recent_patterns"])
+
+        # Pin Bar Entry Levels (Enhancement 1)
+        pin_entries = candle_score.get("pin_bar_entries", [])
+        if pin_entries:
+            st.markdown("---")
+            st.markdown("### Pin Bar Entry Levels")
+            st.markdown("*Per 'The Candlestick Trading Bible' — 3 entry strategies for pin bars:*")
+            for entry in pin_entries:
+                st.markdown(f"**{entry.get('type', 'Pin Bar')}**")
+                ec1, ec2, ec3, ec4 = st.columns(4)
+                ec1.metric("Aggressive Entry", f"₹{entry['aggressive']:,.2f}")
+                ec2.metric("50% Retracement", f"₹{entry['retracement_50']:,.2f}")
+                ec3.metric("Breakout Entry", f"₹{entry['breakout']:,.2f}")
+                ec4.metric("Stop Loss", f"₹{entry['stop_loss']:,.2f}")
+
+        # Fibonacci Levels
+        if fib_levels and fib_levels.get("fib_500"):
+            st.markdown("---")
+            st.markdown("### Fibonacci Retracement Levels")
+            fc1, fc2, fc3 = st.columns(3)
+            fc1.metric("38.2% Level", f"₹{fib_levels['fib_382']:,.2f}")
+            fc2.metric("50.0% Level", f"₹{fib_levels['fib_500']:,.2f}")
+            fc3.metric("61.8% Level", f"₹{fib_levels['fib_618']:,.2f}")
 
     # ─── Tab 4: Shareholding & Investors ─────────────────────────────────
     with tab4:

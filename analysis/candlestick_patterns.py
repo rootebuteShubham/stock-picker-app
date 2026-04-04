@@ -241,6 +241,95 @@ def detect_tweezers(df: pd.DataFrame) -> pd.Series:
     return signals
 
 
+# ─── Enhancement 1: Pin Bar Entry Strategies (PDF pages 81-108) ───────────────
+
+def compute_pin_bar_entry_levels(df: pd.DataFrame, signal_idx: int, signal_type: int) -> dict:
+    """
+    Compute 3 entry levels for a pin bar signal per the book:
+    1. Aggressive: Enter at close of pin bar candle
+    2. 50% Retracement: Enter at 50% of pin bar range (better risk/reward)
+    3. Breakout: Enter when price breaks pin bar high (bullish) or low (bearish)
+
+    Args:
+        df: OHLCV DataFrame
+        signal_idx: integer position index of the signal candle
+        signal_type: 100 (hammer/bullish) or -100 (shooting star/bearish)
+
+    Returns:
+        dict with aggressive, retracement_50, breakout, stop_loss prices
+    """
+    if signal_idx < 0 or signal_idx >= len(df):
+        return {}
+
+    row = df.iloc[signal_idx]
+    high = row["high"]
+    low = row["low"]
+    close = row["close"]
+    open_price = row["open"]
+
+    if signal_type == 100:  # Hammer / Bullish Pin Bar
+        return {
+            "aggressive": close,
+            "retracement_50": low + (high - low) * 0.5,
+            "breakout": high,
+            "stop_loss": low,
+            "type": "Bullish Pin Bar",
+        }
+    elif signal_type == -100:  # Shooting Star / Bearish Pin Bar
+        return {
+            "aggressive": close,
+            "retracement_50": high - (high - low) * 0.5,
+            "breakout": low,
+            "stop_loss": high,
+            "type": "Bearish Pin Bar",
+        }
+    return {}
+
+
+# ─── Enhancement 2: Inside Bar False Breakout (PDF pages 148-158) ─────────────
+
+def detect_inside_bar_false_breakout(df: pd.DataFrame) -> pd.Series:
+    """
+    Detect Inside Bar False Breakout pattern.
+
+    Per the book (pages 148-158):
+    - An inside bar forms (current range inside mother bar range)
+    - Price breaks above the mother bar's high or below the mother bar's low
+    - But then CLOSES BACK inside the mother bar's range
+    - This traps breakout traders and is a strong reversal signal
+
+    Bullish false breakout: Price breaks below mother low, then closes back above it
+    Bearish false breakout: Price breaks above mother high, then closes back below it
+
+    Returns: Series — 100 (bullish false breakout), -100 (bearish false breakout), 0 (none)
+    """
+    signals = pd.Series(0, index=df.index)
+    o, c, h, l = df["open"].values, df["close"].values, df["high"].values, df["low"].values
+
+    lookforward = settings.FALSE_BREAKOUT_LOOKFORWARD
+
+    for i in range(1, len(df)):
+        # First check if this is an inside bar
+        mother_high = h[i - 1]
+        mother_low = l[i - 1]
+        if h[i] >= mother_high or l[i] <= mother_low:
+            continue  # Not an inside bar
+
+        # Now check subsequent candles for false breakout
+        for j in range(i + 1, min(i + 1 + lookforward, len(df))):
+            # Bearish false breakout: broke above mother high but closed back below
+            if h[j] > mother_high and c[j] < mother_high:
+                signals.iloc[j] = -100
+                break
+
+            # Bullish false breakout: broke below mother low but closed back above
+            if l[j] < mother_low and c[j] > mother_low:
+                signals.iloc[j] = 100
+                break
+
+    return signals
+
+
 # ─── Master Detection & Context Validation ────────────────────────────────────
 
 def detect_all_patterns(df: pd.DataFrame) -> dict:
@@ -257,6 +346,7 @@ def detect_all_patterns(df: pd.DataFrame) -> dict:
         "hammer_shooting_star": detect_hammer_shooting_star(df),
         "inside_bar": detect_inside_bar(df),
         "tweezers": detect_tweezers(df),
+        "false_breakout": detect_inside_bar_false_breakout(df),
     }
 
 
@@ -276,6 +366,7 @@ def get_recent_signals(patterns: dict, lookback: int = 10) -> list:
         "hammer_shooting_star": {100: "Hammer / Pin Bar (Bullish)", -100: "Shooting Star (Bearish)"},
         "inside_bar": {50: "Inside Bar / Harami"},
         "tweezers": {100: "Tweezer Bottom (Bullish)", -100: "Tweezer Top (Bearish)"},
+        "false_breakout": {100: "Inside Bar False Breakout (Bullish)", -100: "Inside Bar False Breakout (Bearish)"},
     }
 
     for pattern_key, signals in patterns.items():
@@ -295,17 +386,29 @@ def get_recent_signals(patterns: dict, lookback: int = 10) -> list:
     return recent
 
 
-def score_candlestick_signals(patterns: dict, trend: str, support_levels: list, resistance_levels: list, current_price: float) -> dict:
+def score_candlestick_signals(
+    patterns: dict,
+    trend: str,
+    support_levels: list,
+    resistance_levels: list,
+    current_price: float,
+    ema_21: pd.Series = None,
+    fib_levels: dict = None,
+    df: pd.DataFrame = None,
+) -> dict:
     """
-    Score candlestick patterns considering market context.
+    Score candlestick patterns considering full market context.
 
     Per "The Candlestick Trading Bible":
     - Bullish reversal patterns are only high-probability at support in a downtrend
     - Bearish reversal patterns are only high-probability at resistance in an uptrend
     - Inside bars can be continuation or reversal depending on context
+    - Patterns near 21-EMA in trending markets get a confluence boost (pages 88-91)
+    - Patterns near Fibonacci levels get a confluence boost (pages 120, 154)
+    - False breakouts of inside bars are strong reversal signals (pages 148-158)
 
     Returns:
-        dict with: score (-100 to +100), verdict, recent_patterns, explanation
+        dict with: score, verdict, recent_patterns, explanation, pin_bar_entries
     """
     from analysis.market_structure import is_near_level
 
@@ -316,10 +419,22 @@ def score_candlestick_signals(patterns: dict, trend: str, support_levels: list, 
             "verdict": "Neutral",
             "recent_patterns": [],
             "explanation": "No significant candlestick patterns detected in recent candles",
+            "pin_bar_entries": [],
         }
 
     total_score = 0
     explanations = []
+    pin_bar_entries = []
+
+    # Get current 21-EMA value for confluence check
+    ema21_val = None
+    if ema_21 is not None and not ema_21.empty and not pd.isna(ema_21.iloc[-1]):
+        ema21_val = ema_21.iloc[-1]
+
+    # Fibonacci levels for confluence
+    fib_price_levels = []
+    if fib_levels:
+        fib_price_levels = fib_levels.get("levels", [])
 
     for sig in recent:
         signal_val = sig["signal"]
@@ -329,10 +444,10 @@ def score_candlestick_signals(patterns: dict, trend: str, support_levels: list, 
         if signal_val == 100:  # Bullish signals
             near_support, level, _ = is_near_level(current_price, support_levels, tolerance_pct=0.03)
             if trend == "downtrend" and near_support:
-                raw_score = 30  # High probability: reversal at support in downtrend
+                raw_score = 30
                 explanations.append(f"{pattern_name} at support ₹{level:.0f} in downtrend — strong reversal signal")
             elif trend == "uptrend":
-                raw_score = 20  # Continuation signal
+                raw_score = 20
                 explanations.append(f"{pattern_name} in uptrend — continuation signal")
             else:
                 raw_score = 10
@@ -353,6 +468,41 @@ def score_candlestick_signals(patterns: dict, trend: str, support_levels: list, 
         elif signal_val == 50:  # Neutral (doji, inside bar)
             raw_score = 5 if trend == "uptrend" else (-5 if trend == "downtrend" else 0)
             explanations.append(f"{pattern_name} — indecision, watch for breakout direction")
+
+        # ─── Enhancement 3: 21-MA Confluence Boost (PDF pages 88-91) ─────
+        if ema21_val and signal_val != 50:
+            distance_to_ma = abs(current_price - ema21_val) / ema21_val
+            if distance_to_ma <= settings.MA_PROXIMITY_PCT:
+                boost = settings.MA_CONFLUENCE_BOOST if signal_val > 0 else -settings.MA_CONFLUENCE_BOOST
+                raw_score += boost
+                explanations.append(f"  + Near 21-EMA (₹{ema21_val:.0f}) — confluence boost per book's MA strategy")
+
+        # ─── Enhancement 4: Fibonacci Confluence Boost (PDF pages 120, 154)
+        if fib_price_levels and signal_val != 50:
+            near_fib, fib_level, _ = is_near_level(current_price, fib_price_levels, tolerance_pct=settings.FIB_PROXIMITY_PCT)
+            if near_fib:
+                # Determine which Fib level
+                fib_pct = ""
+                if fib_levels.get("fib_382") and abs(fib_level - fib_levels["fib_382"]) < 1:
+                    fib_pct = "38.2%"
+                elif fib_levels.get("fib_500") and abs(fib_level - fib_levels["fib_500"]) < 1:
+                    fib_pct = "50%"
+                elif fib_levels.get("fib_618") and abs(fib_level - fib_levels["fib_618"]) < 1:
+                    fib_pct = "61.8%"
+                boost = settings.FIB_CONFLUENCE_BOOST if signal_val > 0 else -settings.FIB_CONFLUENCE_BOOST
+                raw_score += boost
+                explanations.append(f"  + Near Fib {fib_pct} level (₹{fib_level:.0f}) — Fibonacci confluence")
+
+        # ─── Enhancement 1: Pin Bar Entry Levels (PDF pages 81-108) ──────
+        if df is not None and "Pin Bar" in pattern_name or "Hammer" in pattern_name or "Shooting Star" in pattern_name:
+            try:
+                sig_date = sig["date"]
+                idx_pos = df.index.get_loc(sig_date)
+                entry_levels = compute_pin_bar_entry_levels(df, idx_pos, signal_val)
+                if entry_levels:
+                    pin_bar_entries.append(entry_levels)
+            except (KeyError, IndexError):
+                pass
 
         total_score += raw_score
 
@@ -375,4 +525,5 @@ def score_candlestick_signals(patterns: dict, trend: str, support_levels: list, 
         "verdict": verdict,
         "recent_patterns": recent,
         "explanation": "; ".join(explanations) if explanations else "No actionable patterns",
+        "pin_bar_entries": pin_bar_entries,
     }
