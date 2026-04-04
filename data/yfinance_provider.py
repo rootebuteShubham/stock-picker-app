@@ -29,9 +29,29 @@ def _get_latest_value(df: pd.DataFrame, row_names: list):
     return None
 
 
+def _get_ttm_value(quarterly_df: pd.DataFrame, annual_df: pd.DataFrame, row_names: list):
+    """
+    Get Trailing Twelve Months value by summing last 4 quarters.
+    Falls back to latest annual value if quarterly data unavailable.
+    """
+    # Try quarterly TTM first (sum of last 4 quarters)
+    if quarterly_df is not None and not quarterly_df.empty:
+        for name in row_names:
+            if name in quarterly_df.index:
+                vals = quarterly_df.loc[name].dropna()
+                if len(vals) >= 4:
+                    return float(vals.iloc[:4].sum())
+                elif len(vals) > 0:
+                    # Less than 4 quarters available, annualize what we have
+                    return float(vals.sum()) * (4 / len(vals))
+    # Fallback to annual
+    return _get_latest_value(annual_df, row_names)
+
+
 def _compute_fundamentals_from_financials(stock, history: pd.DataFrame) -> dict:
     """
     Compute fundamental metrics directly from financial statements.
+    Uses quarterly data for TTM (trailing twelve months) accuracy.
     This is the fallback when .info is throttled/blocked on cloud deployments.
     """
     result = {}
@@ -42,13 +62,20 @@ def _compute_fundamentals_from_financials(stock, history: pd.DataFrame) -> dict:
     except Exception:
         return result
 
+    # Also fetch quarterly statements for TTM computation
+    quarterly_inc = None
+    try:
+        quarterly_inc = stock.quarterly_income_stmt
+    except Exception:
+        pass
+
     if inc is None or inc.empty or bs is None or bs.empty:
         return result
 
     current_price = history["Close"].iloc[-1] if not history.empty else None
 
-    # Net Income
-    net_income = _get_latest_value(inc, ["Net Income", "Net Income Common Stockholders"])
+    # Net Income — prefer TTM (sum of last 4 quarters)
+    net_income = _get_ttm_value(quarterly_inc, inc, ["Net Income", "Net Income Common Stockholders"])
     prev_net_income = None
     if inc is not None and not inc.empty:
         for name in ["Net Income", "Net Income Common Stockholders"]:
@@ -58,8 +85,8 @@ def _compute_fundamentals_from_financials(stock, history: pd.DataFrame) -> dict:
                     prev_net_income = vals.iloc[1]
                     break
 
-    # Revenue
-    revenue = _get_latest_value(inc, ["Total Revenue", "Operating Revenue"])
+    # Revenue — prefer TTM
+    revenue = _get_ttm_value(quarterly_inc, inc, ["Total Revenue", "Operating Revenue"])
     prev_revenue = None
     if inc is not None and not inc.empty:
         for name in ["Total Revenue", "Operating Revenue"]:
