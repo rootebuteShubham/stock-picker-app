@@ -34,6 +34,7 @@ def generate_verdict(
     current_price: float,
     user_units: float = 0,
     user_buy_price: float = 0,
+    selected_timeframe: str = "Daily",
 ) -> FinalVerdict:
     """
     Generate final Buy/Sell/Hold recommendation.
@@ -106,16 +107,14 @@ def generate_verdict(
     else:
         verdict.stop_loss = current_price * 0.93  # 7% below current
 
-    # ─── Timeframe ───────────────────────────────────────────────────────
-    if fund_score > tech_score:
-        verdict.timeframe = "Long-term (6+ months)"
-    elif tech_score > fund_score:
-        if candle_raw > 20 or candle_raw < -20:
-            verdict.timeframe = "Short-term (1-4 weeks)"
-        else:
-            verdict.timeframe = "Medium-term (1-6 months)"
-    else:
-        verdict.timeframe = "Medium-term (1-6 months)"
+    # ─── Timeframe — matches the user's selected chart timeframe ────────
+    timeframe_map = {
+        "Hourly":  "Intraday / Short-term (days to 1-2 weeks)",
+        "Daily":   "Short to Medium-term (1-8 weeks)",
+        "Weekly":  "Medium-term (1-6 months)",
+        "Monthly": "Long-term (6+ months)",
+    }
+    verdict.timeframe = timeframe_map.get(selected_timeframe, "Medium-term (1-6 months)")
 
     # ─── Position Advice ─────────────────────────────────────────────────
     if user_units > 0 and user_buy_price > 0:

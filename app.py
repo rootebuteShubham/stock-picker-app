@@ -194,6 +194,7 @@ if analyze_btn:
             current_price,
             user_units,
             user_buy_price,
+            selected_timeframe=selected_timeframe,
         )
 
     # Store in session state
