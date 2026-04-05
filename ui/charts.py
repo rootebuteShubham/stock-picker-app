@@ -21,6 +21,7 @@ def build_candlestick_chart(
     ema_21: pd.Series = None,
     fib_levels: dict = None,
     timeframe_label: str = "1D",
+    elliott_wave=None,
 ) -> go.Figure:
     """Build interactive candlestick chart with overlays."""
     fig = make_subplots(
@@ -127,6 +128,10 @@ def build_candlestick_chart(
     if patterns:
         _add_pattern_markers(fig, df, patterns)
 
+    # Elliott Wave overlay
+    if elliott_wave and elliott_wave.detected:
+        _add_elliott_wave_overlay(fig, elliott_wave)
+
     # Volume bars
     if "volume" in df.columns:
         colors = ["#00C853" if c >= o else "#FF1744" for c, o in zip(df["close"], df["open"])]
@@ -185,6 +190,55 @@ def _add_pattern_markers(fig: go.Figure, df: pd.DataFrame, patterns: dict):
                     borderwidth=1,
                     borderpad=2,
                 )
+
+
+def _add_elliott_wave_overlay(fig: go.Figure, elliott_wave) -> None:
+    """Add Elliott Wave lines, labels, and projection targets to the chart."""
+    wave_color = "#29B6F6"  # Light blue — distinct from all existing overlays
+
+    wp = elliott_wave.wave_points
+    if not wp:
+        return
+
+    # Wave connecting line with labels
+    x_vals = [pt.index for pt in wp]
+    y_vals = [pt.price for pt in wp]
+    labels = [pt.wave_label for pt in wp]
+
+    # Determine text position: above for highs, below for lows
+    text_positions = []
+    for i, pt in enumerate(wp):
+        if i == 0:
+            text_positions.append("top center")
+        elif pt.price > wp[i - 1].price:
+            text_positions.append("top center")
+        else:
+            text_positions.append("bottom center")
+
+    fig.add_trace(go.Scatter(
+        x=x_vals, y=y_vals,
+        mode="lines+markers+text",
+        name="Elliott Wave",
+        line=dict(color=wave_color, width=2),
+        marker=dict(size=10, symbol="diamond", color=wave_color,
+                    line=dict(width=1, color="white")),
+        text=labels,
+        textposition=text_positions,
+        textfont=dict(size=11, color=wave_color, family="Arial Black"),
+        hovertemplate="Wave %{text}<br>₹%{y:,.0f}<extra></extra>",
+    ), row=1, col=1)
+
+    # Projection target lines
+    for proj in elliott_wave.projections:
+        fig.add_hline(
+            y=proj.price, row=1, col=1,
+            line=dict(color=wave_color, width=1, dash="dashdot"),
+            annotation_text=f"{proj.label}: ₹{proj.price:,.0f}",
+            annotation_position="top right",
+            annotation_font_size=9,
+            annotation_font_color=wave_color,
+            opacity=0.6,
+        )
 
 
 def build_rsi_macd_chart(

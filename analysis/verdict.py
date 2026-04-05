@@ -35,6 +35,7 @@ def generate_verdict(
     user_units: float = 0,
     user_buy_price: float = 0,
     selected_timeframe: str = "Daily",
+    elliott_result=None,
 ) -> FinalVerdict:
     """
     Generate final Buy/Sell/Hold recommendation.
@@ -170,5 +171,15 @@ def generate_verdict(
         verdict.reasoning.append(f"Key Support: ₹{support_levels[0]:,.0f}")
     if resistance_levels:
         verdict.reasoning.append(f"Key Resistance: ₹{resistance_levels[0]:,.0f}")
+
+    # Elliott Wave context (informational only — NOT scored)
+    if elliott_result and getattr(elliott_result, "detected", False):
+        if elliott_result.confidence >= 55:  # Moderate or higher
+            wave_desc = elliott_result.wave_type.replace("_", " ").title()
+            verdict.reasoning.append(
+                f"Elliott Wave: {wave_desc} detected "
+                f"(Confidence: {elliott_result.confidence:.0f}/100). "
+                f"Currently in Wave {elliott_result.current_wave}. {elliott_result.summary}"
+            )
 
     return verdict

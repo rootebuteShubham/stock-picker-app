@@ -150,3 +150,37 @@ DEFAULT_INTERVAL = "1d"
 SR_LOOKBACK_PERIODS = 60
 SR_PIVOT_WINDOW = 5            # Window for detecting swing highs/lows
 SR_CLUSTER_PCT = 0.02          # 2% clustering tolerance for S/R levels
+
+# ─── Elliott Wave Detection ──────────────────────────────────────────────────
+
+ELLIOTT_SWING_WINDOW = 5        # Swing detection window for wave pivots
+ELLIOTT_MIN_SWING_POINTS = 6    # Minimum points needed for impulse detection
+
+# Fibonacci ideal ratios for wave relationships
+ELLIOTT_W2_RETRACEMENT = [0.382, 0.500, 0.618, 0.764]
+ELLIOTT_W3_EXTENSION = [1.382, 1.618, 2.000, 2.618]
+ELLIOTT_W4_RETRACEMENT = [0.236, 0.382, 0.500]
+ELLIOTT_W5_RELATIVE_W1 = [0.618, 1.000, 1.618]
+ELLIOTT_WB_RETRACEMENT = [0.382, 0.500, 0.618]
+ELLIOTT_WC_RELATIVE_WA = [0.618, 1.000, 1.618]
+
+# Maximum deviation from ideal Fib ratio to count as aligned
+ELLIOTT_FIB_TOLERANCE = 0.15
+
+# Confidence weights
+ELLIOTT_CONFIDENCE_FIB_WEIGHT = 0.50
+ELLIOTT_CONFIDENCE_STRUCTURE_WEIGHT = 0.30
+ELLIOTT_CONFIDENCE_CLARITY_WEIGHT = 0.20
+
+# Confidence label thresholds
+ELLIOTT_CONFIDENCE_HIGH = 75
+ELLIOTT_CONFIDENCE_MODERATE = 55
+ELLIOTT_CONFIDENCE_LOW = 35
+
+# Timeframe-specific swing window overrides
+ELLIOTT_SWING_WINDOW_OVERRIDES = {
+    "Hourly": 3,
+    "Daily": 5,
+    "Weekly": 5,
+    "Monthly": 4,
+}
