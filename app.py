@@ -478,15 +478,17 @@ if "stock_data" in st.session_state:
 
             # Projections
             if elliott_result.projections:
-                st.markdown("#### Wave Projections")
-                proj_cols = st.columns(min(len(elliott_result.projections), 4))
-                for i, proj in enumerate(elliott_result.projections[:4]):
-                    with proj_cols[i]:
-                        st.metric(
-                            proj.label,
-                            f"₹{proj.price:,.2f}",
-                            f"{proj.fib_ratio:.3f}x ({proj.confidence})",
-                        )
+                st.markdown("#### Where could the price go next?")
+                for proj in elliott_result.projections[:3]:
+                    conf_icon = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(proj.confidence, "⚪")
+                    st.markdown(
+                        f'{conf_icon} **{proj.label}** — **₹{proj.price:,.2f}** '
+                        f'&nbsp; <span style="color:#888; font-size:0.85rem;">'
+                        f'Probability: {proj.confidence}</span>',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"    {proj.meaning}")
+                st.markdown("")
 
             # Warnings
             for w in elliott_result.warnings:

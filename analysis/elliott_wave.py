@@ -69,10 +69,11 @@ class FibRelationship:
 @dataclass
 class WaveProjection:
     """A projected target for the next wave."""
-    label: str              # e.g. "Wave 5 Target (1.0x W1)"
+    label: str              # Short label, e.g. "Most Likely Target"
     price: float
     fib_ratio: float
     confidence: str         # "high", "medium", "low"
+    meaning: str = ""       # Plain-English explanation
 
 
 @dataclass
@@ -510,69 +511,72 @@ def _compute_projections(points: list, current_wave: str, direction: str,
     """
     projections = []
     p = [pt[1] for pt in points]
+    move = "rise" if direction == "up" else "fall"
+    trend_word = "bullish" if direction == "up" else "bearish"
 
     if wave_type == "impulse" and len(p) >= 6:
         w1_len = abs(p[1] - p[0])
 
         if current_wave in ("3", "4"):
-            # Project Wave 5 targets from Wave 4 end
+            # Project Wave 5 targets — the final push in the trend
             w4_end = p[4]
-            for ratio, conf in [(1.000, "high"), (0.618, "medium"), (1.618, "low")]:
-                if direction == "up":
-                    target = w4_end + w1_len * ratio
-                else:
-                    target = w4_end - w1_len * ratio
-                projections.append(WaveProjection(
-                    label=f"Wave 5 ({ratio:.3f}x W1)",
-                    price=round(target, 2),
-                    fib_ratio=ratio,
-                    confidence=conf,
-                ))
+            targets = [
+                (1.000, "high", "Most Likely Target",
+                 f"Final {move} equal to the first wave — the most common Wave 5 outcome"),
+                (0.618, "medium", "Conservative Target",
+                 f"A smaller final {move} (61.8% of first wave) — happens when trend is weakening"),
+                (1.618, "low", "Extended Target",
+                 f"A strong final push (161.8% of first wave) — only if momentum is very strong"),
+            ]
+            for ratio, conf, label, meaning in targets:
+                target = w4_end + w1_len * ratio if direction == "up" else w4_end - w1_len * ratio
+                projections.append(WaveProjection(label, round(target, 2), ratio, conf, meaning))
 
         elif current_wave in ("5", "A"):
-            # Project corrective targets: 38.2%, 50%, 61.8% of entire impulse
+            # Correction targets — how far price may pull back after the impulse
             impulse_len = abs(p[5] - p[0])
-            for ratio, conf in [(0.382, "high"), (0.500, "medium"), (0.618, "medium")]:
-                if direction == "up":
-                    target = p[5] - impulse_len * ratio
-                else:
-                    target = p[5] + impulse_len * ratio
-                projections.append(WaveProjection(
-                    label=f"Correction ({ratio:.1%} retrace)",
-                    price=round(target, 2),
-                    fib_ratio=ratio,
-                    confidence=conf,
-                ))
+            pullback = "pullback" if direction == "up" else "bounce"
+            targets = [
+                (0.382, "high", f"Shallow {pullback.title()}",
+                 f"Price retraces 38.2% of the entire {move} — mild correction, trend likely resumes"),
+                (0.500, "medium", f"Normal {pullback.title()}",
+                 f"Price retraces 50% of the entire {move} — standard correction depth"),
+                (0.618, "medium", f"Deep {pullback.title()}",
+                 f"Price retraces 61.8% of the entire {move} — deep correction, watch for trend reversal"),
+            ]
+            for ratio, conf, label, meaning in targets:
+                target = p[5] - impulse_len * ratio if direction == "up" else p[5] + impulse_len * ratio
+                projections.append(WaveProjection(label, round(target, 2), ratio, conf, meaning))
 
         elif current_wave == "2":
-            # Project Wave 3 targets
+            # Wave 3 targets — the strongest and longest wave
             w2_end = p[2]
-            for ratio, conf in [(1.618, "high"), (2.000, "medium"), (2.618, "low")]:
-                if direction == "up":
-                    target = w2_end + w1_len * ratio
-                else:
-                    target = w2_end - w1_len * ratio
-                projections.append(WaveProjection(
-                    label=f"Wave 3 ({ratio:.3f}x W1)",
-                    price=round(target, 2),
-                    fib_ratio=ratio,
-                    confidence=conf,
-                ))
+            targets = [
+                (1.618, "high", "Primary Target",
+                 f"Wave 3 reaches 161.8% of Wave 1 — the most common {trend_word} target"),
+                (2.000, "medium", "Strong Trend Target",
+                 f"Wave 3 reaches 200% of Wave 1 — indicates strong {trend_word} momentum"),
+                (2.618, "low", "Very Strong Target",
+                 f"Wave 3 reaches 261.8% of Wave 1 — only in exceptionally strong trends"),
+            ]
+            for ratio, conf, label, meaning in targets:
+                target = w2_end + w1_len * ratio if direction == "up" else w2_end - w1_len * ratio
+                projections.append(WaveProjection(label, round(target, 2), ratio, conf, meaning))
 
     elif wave_type == "corrective" and len(p) >= 4:
         wa_len = abs(p[1] - p[0])
-        # Project end of correction (Wave C targets)
-        for ratio, conf in [(1.000, "high"), (0.618, "medium"), (1.618, "low")]:
-            if direction == "down":
-                target = p[2] - wa_len * ratio
-            else:
-                target = p[2] + wa_len * ratio
-            projections.append(WaveProjection(
-                label=f"Wave C ({ratio:.3f}x A)",
-                price=round(target, 2),
-                fib_ratio=ratio,
-                confidence=conf,
-            ))
+        end_word = "bottom" if direction == "down" else "top"
+        targets = [
+            (1.000, "high", f"Most Likely {end_word.title()}",
+             f"Correction Wave C equals Wave A in size — the most common pattern"),
+            (0.618, "medium", f"Shallow {end_word.title()}",
+             f"Wave C is only 61.8% of Wave A — correction may end sooner than expected"),
+            (1.618, "low", f"Extended {end_word.title()}",
+             f"Wave C overshoots to 161.8% of Wave A — deeper correction, less common"),
+        ]
+        for ratio, conf, label, meaning in targets:
+            target = p[2] - wa_len * ratio if direction == "down" else p[2] + wa_len * ratio
+            projections.append(WaveProjection(label, round(target, 2), ratio, conf, meaning))
 
     return projections
 
@@ -624,23 +628,37 @@ def _generate_summary(result: ElliottWaveResult) -> str:
     if not result.detected:
         return "No clear Elliott Wave pattern detected in the current price structure."
 
-    wave_desc = result.wave_type.replace("_", " ").title()
     direction = result.trend_direction
 
-    summary = (
-        f"A {direction} {wave_desc} pattern is detected with "
-        f"{result.confidence_label.lower()} confidence ({result.confidence:.0f}/100). "
-    )
+    # Plain-English wave position descriptions
+    wave_meanings = {
+        # Impulse waves
+        "1": "the start of a new trend — early stage, direction not yet confirmed",
+        "2": "a pullback after the first move — healthy correction, preparing for the strongest wave",
+        "3": "the strongest and longest wave — maximum momentum, most profitable phase",
+        "4": "a pause before the final push — consolidation, trend still intact",
+        "5": "the final push in the trend — late stage, watch for signs of exhaustion",
+        # Corrective waves
+        "A": "the first leg of a correction — trend may be reversing",
+        "B": "a temporary bounce within the correction — can be misleading, not a real reversal",
+        "C": "the final leg of the correction — often the sharpest move, nearing completion",
+        "C+": "beyond the expected correction — extended move, correction may be deeper than typical",
+    }
 
-    if result.current_wave:
-        summary += (
-            f"Price appears to be in Wave {result.current_wave} "
-            f"({result.current_wave_progress}). "
-        )
+    wave = result.current_wave
+    meaning = wave_meanings.get(wave, "an uncertain position")
+
+    if result.wave_type.startswith("impulse"):
+        pattern = f"a {direction} 5-wave trend"
+    else:
+        pattern = f"a {direction} correction (A-B-C pattern)"
+
+    summary = f"The chart shows {pattern}. "
+    summary += f"Price is currently in **Wave {wave}** — {meaning}. "
 
     if result.projections:
         top_proj = result.projections[0]
-        summary += f"Primary target: ₹{top_proj.price:,.0f} ({top_proj.label})."
+        summary += f"Most likely next target: **₹{top_proj.price:,.0f}**."
 
     return summary
 
