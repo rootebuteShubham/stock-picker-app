@@ -254,13 +254,22 @@ def get_stock_info(ticker: str) -> dict:
 
 
 def get_historical_data(ticker: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
-    """Fetch OHLCV historical price data."""
+    """Fetch OHLCV historical price data.
+
+    Args:
+        ticker: yfinance ticker (e.g. "RELIANCE.NS")
+        period: Data period (e.g. "1mo", "1y", "5y", "10y")
+        interval: Candle interval (e.g. "1h", "1d", "1wk", "1mo")
+    """
     stock = yf.Ticker(ticker)
     df = stock.history(period=period, interval=interval)
     if df.empty:
         return pd.DataFrame()
     # Standardize column names
     df.columns = [c.lower().replace(" ", "_") for c in df.columns]
+    # Remove timezone info from index for consistency (hourly data returns tz-aware)
+    if df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
     return df
 
 

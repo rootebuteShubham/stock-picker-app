@@ -30,10 +30,15 @@ class StockData:
     errors: list = field(default_factory=list)
 
 
-def fetch_all(ticker: str, period: str = "1y") -> StockData:
+def fetch_all(ticker: str, period: str = "1y", interval: str = "1d") -> StockData:
     """
     Fetch all available data for a stock from all providers.
     Handles failures gracefully — partial data is acceptable.
+
+    Args:
+        ticker: yfinance ticker (e.g. "RELIANCE.NS")
+        period: History period (e.g. "1mo", "1y", "5y", "10y")
+        interval: Candle interval (e.g. "1h", "1d", "1wk", "1mo")
     """
     data = StockData(ticker=ticker)
 
@@ -45,7 +50,7 @@ def fetch_all(ticker: str, period: str = "1y") -> StockData:
 
     # 2. yfinance: historical price data
     try:
-        data.history = get_historical_data(ticker, period=period)
+        data.history = get_historical_data(ticker, period=period, interval=interval)
     except Exception as e:
         data.errors.append(f"yfinance history: {e}")
 

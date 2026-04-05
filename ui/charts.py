@@ -20,6 +20,7 @@ def build_candlestick_chart(
     bb_lower: pd.Series = None,
     ema_21: pd.Series = None,
     fib_levels: dict = None,
+    timeframe_label: str = "1D",
 ) -> go.Figure:
     """Build interactive candlestick chart with overlays."""
     fig = make_subplots(
@@ -27,7 +28,7 @@ def build_candlestick_chart(
         shared_xaxes=True,
         vertical_spacing=0.03,
         row_heights=[0.8, 0.2],
-        subplot_titles=("Price", "Volume"),
+        subplot_titles=(f"Price ({timeframe_label})", "Volume"),
     )
 
     # Candlestick

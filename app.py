@@ -11,6 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config.ticker_map import resolve_ticker
+from config import settings
 from data.fetcher import fetch_all
 from analysis.fundamental import analyze as analyze_fundamentals
 from analysis.technical import analyze as analyze_technicals
@@ -59,6 +60,20 @@ stock_input = st.sidebar.text_input(
 )
 
 exchange = st.sidebar.radio("Exchange", ["NSE", "BSE"], horizontal=True)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Chart Timeframe**")
+
+timeframe_options = list(settings.TIMEFRAME_OPTIONS.keys())
+selected_timeframe = st.sidebar.selectbox(
+    "Timeframe",
+    timeframe_options,
+    index=timeframe_options.index(settings.DEFAULT_TIMEFRAME),
+    help="Select the chart timeframe for technical analysis",
+)
+
+tf_config = settings.TIMEFRAME_OPTIONS[selected_timeframe]
+st.sidebar.caption(f"📊 {tf_config['label']} — Best for: {tf_config['best_for']}")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Your Position (Optional)**")
@@ -135,9 +150,10 @@ if analyze_btn:
         st.error("Could not resolve ticker. Please check the input.")
         st.stop()
 
-    # Fetch data
-    with st.spinner(f"Fetching data for {display_name} ({ticker})..."):
-        stock_data = fetch_all(ticker)
+    # Fetch data with selected timeframe
+    tf = settings.TIMEFRAME_OPTIONS[selected_timeframe]
+    with st.spinner(f"Fetching {selected_timeframe.lower()} data for {display_name} ({ticker})..."):
+        stock_data = fetch_all(ticker, period=tf["period"], interval=tf["interval"])
 
     if stock_data.history.empty:
         st.error(f"No price data found for {ticker}. Please check the ticker and try again.")
@@ -191,6 +207,8 @@ if analyze_btn:
     st.session_state["final_verdict"] = final_verdict
     st.session_state["current_price"] = current_price
     st.session_state["fib_levels"] = fib_levels
+    st.session_state["timeframe"] = selected_timeframe
+    st.session_state["tf_config"] = tf
 
 # ─── Display Results ─────────────────────────────────────────────────────────
 
@@ -205,6 +223,8 @@ if "stock_data" in st.session_state:
     final_verdict = st.session_state["final_verdict"]
     current_price = st.session_state["current_price"]
     fib_levels = st.session_state.get("fib_levels", {})
+    timeframe = st.session_state.get("timeframe", "Daily")
+    tf_config = st.session_state.get("tf_config", settings.TIMEFRAME_OPTIONS["Daily"])
 
     # Company header
     render_company_header(stock_data.info, stock_data.google_data)
@@ -301,6 +321,13 @@ if "stock_data" in st.session_state:
     # ─── Tab 3: Technical Analysis ───────────────────────────────────────
     with tab3:
         st.markdown("### Technical Analysis")
+        st.markdown(
+            f"<div style='background:rgba(33,150,243,0.1); padding:8px 14px; border-radius:6px; "
+            f"margin-bottom:12px; display:inline-block;'>"
+            f"📊 <b>Timeframe:</b> {tf_config['label']} ({tf_config['candle_label']} candles) "
+            f"&nbsp;·&nbsp; Best for: {tf_config['best_for']}</div>",
+            unsafe_allow_html=True,
+        )
 
         # Score gauge
         col1, col2 = st.columns([1, 3])
@@ -318,7 +345,7 @@ if "stock_data" in st.session_state:
         st.markdown("---")
 
         # Candlestick chart with overlays
-        st.markdown("### Price Chart with Patterns")
+        st.markdown(f"### Price Chart — {tf_config['candle_label']} Candles")
         fig_candle = build_candlestick_chart(
             stock_data.history,
             patterns=patterns,
@@ -331,6 +358,7 @@ if "stock_data" in st.session_state:
             bb_lower=technical_result.bb_lower,
             ema_21=technical_result.ema_21,
             fib_levels=fib_levels,
+            timeframe_label=tf_config["candle_label"],
         )
         st.plotly_chart(fig_candle, use_container_width=True)
 
@@ -416,6 +444,7 @@ if "stock_data" in st.session_state:
     # ─── Tab 5: Final Verdict ────────────────────────────────────────────
     with tab5:
         st.markdown("### Final Verdict")
+        st.caption(f"Based on {tf_config['label']} technical analysis")
 
         # Verdict banner
         render_verdict_banner(final_verdict)

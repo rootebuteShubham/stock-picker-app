@@ -104,6 +104,41 @@ VERDICT_HOLD_LOW = 40
 VERDICT_SELL = 40
 VERDICT_STRONG_SELL = 25
 
+# ─── Timeframe Options ───────────────────────────────────────────────────────
+
+TIMEFRAME_OPTIONS = {
+    "Hourly": {
+        "period": "1mo",
+        "interval": "1h",
+        "label": "Hourly (1 Month)",
+        "candle_label": "1H",
+        "best_for": "Intraday / Short-term trades",
+    },
+    "Daily": {
+        "period": "1y",
+        "interval": "1d",
+        "label": "Daily (1 Year)",
+        "candle_label": "1D",
+        "best_for": "Swing trading",
+    },
+    "Weekly": {
+        "period": "5y",
+        "interval": "1wk",
+        "label": "Weekly (5 Years)",
+        "candle_label": "1W",
+        "best_for": "Medium-term trend analysis",
+    },
+    "Monthly": {
+        "period": "10y",
+        "interval": "1mo",
+        "label": "Monthly (10 Years)",
+        "candle_label": "1M",
+        "best_for": "Long-term investing",
+    },
+}
+
+DEFAULT_TIMEFRAME = "Daily"
+
 # ─── Data Fetching ────────────────────────────────────────────────────────────
 
 DEFAULT_HISTORY_PERIOD = "1y"
