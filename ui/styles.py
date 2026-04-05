@@ -150,6 +150,37 @@ CUSTOM_CSS = """
         color: #aaa;
         font-size: 0.9rem;
     }
+    /* Elliott Wave Verdict Banner */
+    .ew-verdict-banner {
+        border-radius: 16px;
+        padding: 24px 32px;
+        text-align: center;
+        margin: 16px 0;
+    }
+    .ew-verdict-banner.bullish {
+        background: linear-gradient(135deg, #1b5e20, #4CAF50);
+        color: white;
+    }
+    .ew-verdict-banner.caution {
+        background: linear-gradient(135deg, #e65100, #FFC107);
+        color: white;
+    }
+    .ew-verdict-banner.wait {
+        background: linear-gradient(135deg, #1a237e, #42A5F5);
+        color: white;
+    }
+    .ew-verdict-banner.bearish {
+        background: linear-gradient(135deg, #b71c1c, #FF5252);
+        color: white;
+    }
+    .ew-verdict-banner.no-signal {
+        background: linear-gradient(135deg, #37474f, #78909C);
+        color: white;
+    }
+    .ew-verdict-banner h2 { margin: 0; font-size: 1.8rem; }
+    .ew-verdict-banner .ew-headline { font-size: 1.1rem; margin-top: 6px; opacity: 0.95; }
+    .ew-verdict-banner .ew-confidence { font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
+    .ew-verdict-banner .ew-rationale { font-size: 0.85rem; opacity: 0.8; margin-top: 8px; font-style: italic; }
 </style>
 """
 

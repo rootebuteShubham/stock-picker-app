@@ -97,6 +97,26 @@ def render_verdict_banner(verdict):
     st.markdown(html, unsafe_allow_html=True)
 
 
+def render_elliott_verdict_banner(ew_verdict):
+    """Render the Elliott Wave standalone verdict banner."""
+    rec = getattr(ew_verdict, "recommendation", "No Signal")
+    css_class = rec.lower().replace(" ", "-")
+    headline = getattr(ew_verdict, "headline", "")
+    rationale = getattr(ew_verdict, "rationale", "")
+    confidence = getattr(ew_verdict, "confidence", 0)
+    conf_label = getattr(ew_verdict, "confidence_label", "N/A")
+
+    html = f"""
+    <div class="ew-verdict-banner {css_class}">
+        <h2>{rec}</h2>
+        <div class="ew-headline">{headline}</div>
+        <div class="ew-confidence">Wave Confidence: {confidence:.0f}% ({conf_label})</div>
+        <div class="ew-rationale">{rationale}</div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def render_target_cards(verdict, current_price: float):
     """Render entry, target, and stop-loss price cards."""
     cols = st.columns(4)

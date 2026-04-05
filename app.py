@@ -17,7 +17,7 @@ from analysis.fundamental import analyze as analyze_fundamentals
 from analysis.technical import analyze as analyze_technicals
 from analysis.candlestick_patterns import detect_all_patterns, score_candlestick_signals, get_recent_signals
 from analysis.market_structure import identify_trend, find_support_resistance, compute_fibonacci_levels
-from analysis.elliott_wave import analyze as analyze_elliott_wave
+from analysis.elliott_wave import analyze as analyze_elliott_wave, derive_elliott_verdict
 from analysis.verdict import generate_verdict
 from ui.styles import inject_css
 from ui.components import (
@@ -29,6 +29,7 @@ from ui.components import (
     render_pattern_signals,
     render_news,
     render_holders_table,
+    render_elliott_verdict_banner,
 )
 from ui.charts import (
     build_candlestick_chart,
@@ -191,6 +192,8 @@ if analyze_btn:
             timeframe=selected_timeframe,
         )
 
+    elliott_verdict = derive_elliott_verdict(elliott_result)
+
     with st.spinner("Generating verdict..."):
         current_price = stock_data.info.get("current_price") or stock_data.history["close"].iloc[-1]
         final_verdict = generate_verdict(
@@ -220,6 +223,7 @@ if analyze_btn:
     st.session_state["timeframe"] = selected_timeframe
     st.session_state["tf_config"] = tf
     st.session_state["elliott_result"] = elliott_result
+    st.session_state["elliott_verdict"] = elliott_verdict
 
 # ─── Display Results ─────────────────────────────────────────────────────────
 
@@ -237,6 +241,7 @@ if "stock_data" in st.session_state:
     timeframe = st.session_state.get("timeframe", "Daily")
     tf_config = st.session_state.get("tf_config", settings.TIMEFRAME_OPTIONS["Daily"])
     elliott_result = st.session_state.get("elliott_result", None)
+    elliott_verdict = st.session_state.get("elliott_verdict", None)
 
     # Company header
     render_company_header(stock_data.info, stock_data.google_data)
@@ -248,11 +253,12 @@ if "stock_data" in st.session_state:
                 st.warning(err)
 
     # ─── Tabs ────────────────────────────────────────────────────────────
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Overview",
         "Fundamental Analysis",
         "Technical Analysis",
         "Shareholding & Investors",
+        "Elliott Wave",
         "Final Verdict",
     ])
 
@@ -373,7 +379,7 @@ if "stock_data" in st.session_state:
             timeframe_label=tf_config["candle_label"],
             elliott_wave=elliott_result,
         )
-        st.plotly_chart(fig_candle, use_container_width=True)
+        st.plotly_chart(fig_candle, use_container_width=True, key="tech_candlestick")
 
         # RSI / MACD chart
         st.markdown("### Indicators")
@@ -423,83 +429,6 @@ if "stock_data" in st.session_state:
             fc2.metric("50.0% Level", f"₹{fib_levels['fib_500']:,.2f}")
             fc3.metric("61.8% Level", f"₹{fib_levels['fib_618']:,.2f}")
 
-        # Elliott Wave Analysis
-        st.markdown("---")
-        st.markdown("### Elliott Wave Analysis")
-        if elliott_result and elliott_result.detected:
-            # Confidence badge
-            conf_colors = {
-                "High": "#00C853", "Moderate": "#FFC107",
-                "Low": "#FF9800", "Speculative": "#FF5252",
-            }
-            conf_color = conf_colors.get(elliott_result.confidence_label, "#666")
-            wave_desc = elliott_result.wave_type.replace("_", " ").title()
-
-            st.markdown(
-                f'<div style="background:rgba(41,182,246,0.1); padding:10px 16px; '
-                f'border-radius:8px; margin-bottom:12px; border-left:4px solid {conf_color};">'
-                f'<strong>{wave_desc}</strong> '
-                f'&nbsp;&middot;&nbsp; Confidence: {elliott_result.confidence:.0f}/100 '
-                f'({elliott_result.confidence_label})'
-                f'&nbsp;&middot;&nbsp; Currently in Wave {elliott_result.current_wave} '
-                f'({elliott_result.current_wave_progress})</div>',
-                unsafe_allow_html=True,
-            )
-
-            st.markdown(elliott_result.summary)
-
-            # Rule validation (expandable) — only for impulse waves
-            if elliott_result.rules_validation:
-                with st.expander("Cardinal Rule Validation"):
-                    for rule in elliott_result.rules_validation:
-                        status = "PASS" if rule.passed else "FAIL"
-                        color = "#00C853" if rule.passed else "#FF1744"
-                        st.markdown(
-                            f'<div style="padding:4px 0;">'
-                            f'<span style="color:{color}; font-weight:700;">{status}</span> '
-                            f'<strong>{rule.rule_name}</strong>: {rule.description}<br>'
-                            f'<span style="color:#aaa; font-size:0.85rem;">{rule.detail}</span></div>',
-                            unsafe_allow_html=True,
-                        )
-
-            # Fibonacci relationships
-            if elliott_result.fib_relationships:
-                with st.expander("Fibonacci Wave Relationships"):
-                    for fib in elliott_result.fib_relationships:
-                        deviation_pct = fib.deviation * 100
-                        quality = "Excellent" if deviation_pct < 3 else (
-                            "Good" if deviation_pct < 8 else "Approximate"
-                        )
-                        st.markdown(
-                            f"- **{fib.description}**: {fib.actual_ratio:.3f} "
-                            f"(ideal: {fib.ideal_ratio:.3f}, {quality})"
-                        )
-                    st.markdown(f"**Fibonacci Alignment Score: {elliott_result.fib_score:.0f}/100**")
-
-            # Projections
-            if elliott_result.projections:
-                st.markdown("#### Where could the price go next?")
-                for proj in elliott_result.projections[:3]:
-                    conf_icon = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(proj.confidence, "⚪")
-                    st.markdown(
-                        f'{conf_icon} **{proj.label}** — **₹{proj.price:,.2f}** '
-                        f'&nbsp; <span style="color:#888; font-size:0.85rem;">'
-                        f'Probability: {proj.confidence}</span>',
-                        unsafe_allow_html=True,
-                    )
-                    st.caption(f"    {getattr(proj, 'meaning', '')}")
-                st.markdown("")
-
-            # Warnings
-            for w in elliott_result.warnings:
-                st.caption(f"— {w}")
-        else:
-            st.info(
-                "No clear Elliott Wave pattern detected in the current timeframe. "
-                "This is normal — Elliott Wave patterns require well-defined swing structure "
-                "and not all price action forms identifiable wave counts."
-            )
-
     # ─── Tab 4: Shareholding & Investors ─────────────────────────────────
     with tab4:
         st.markdown("### Shareholding Pattern")
@@ -531,8 +460,128 @@ if "stock_data" in st.session_state:
         # Institutional & MF holders from yfinance
         render_holders_table(stock_data.holders)
 
-    # ─── Tab 5: Final Verdict ────────────────────────────────────────────
+    # ─── Tab 5: Elliott Wave ────────────────────────────────────────────
     with tab5:
+        st.markdown("### Elliott Wave Analysis")
+        st.caption(f"Based on {tf_config['label']} chart data")
+
+        if elliott_result and getattr(elliott_result, "detected", False):
+            # Verdict banner
+            if elliott_verdict:
+                render_elliott_verdict_banner(elliott_verdict)
+
+            # Confidence badge
+            conf_colors = {
+                "High": "#00C853", "Moderate": "#FFC107",
+                "Low": "#FF9800", "Speculative": "#FF5252",
+            }
+            conf_color = conf_colors.get(
+                getattr(elliott_result, "confidence_label", ""), "#666"
+            )
+            wave_desc = getattr(elliott_result, "wave_type", "").replace("_", " ").title()
+
+            st.markdown(
+                f'<div style="background:rgba(41,182,246,0.1); padding:10px 16px; '
+                f'border-radius:8px; margin-bottom:12px; border-left:4px solid {conf_color};">'
+                f'<strong>{wave_desc}</strong> '
+                f'&nbsp;&middot;&nbsp; Confidence: {getattr(elliott_result, "confidence", 0):.0f}/100 '
+                f'({getattr(elliott_result, "confidence_label", "N/A")})'
+                f'&nbsp;&middot;&nbsp; Currently in Wave {getattr(elliott_result, "current_wave", "?")} '
+                f'({getattr(elliott_result, "current_wave_progress", "")})</div>',
+                unsafe_allow_html=True,
+            )
+
+            st.markdown(getattr(elliott_result, "summary", ""))
+
+            # Candlestick chart with Elliott Wave overlay
+            st.markdown("---")
+            st.markdown(f"### Price Chart with Wave Overlay — {tf_config['candle_label']} Candles")
+            fig_ew = build_candlestick_chart(
+                stock_data.history,
+                patterns=patterns,
+                support_levels=sr_levels["support_levels"],
+                resistance_levels=sr_levels["resistance_levels"],
+                sma_20=technical_result.sma_20,
+                sma_50=technical_result.sma_50,
+                sma_200=technical_result.sma_200,
+                bb_upper=technical_result.bb_upper,
+                bb_lower=technical_result.bb_lower,
+                ema_21=technical_result.ema_21,
+                fib_levels=fib_levels,
+                timeframe_label=tf_config["candle_label"],
+                elliott_wave=elliott_result,
+            )
+            st.plotly_chart(fig_ew, use_container_width=True, key="ew_candlestick")
+
+            # Cardinal Rule Validation (expandable)
+            rules = getattr(elliott_result, "rules_validation", [])
+            if rules:
+                with st.expander("Cardinal Rule Validation"):
+                    for rule in rules:
+                        status = "PASS" if rule.passed else "FAIL"
+                        color = "#00C853" if rule.passed else "#FF1744"
+                        st.markdown(
+                            f'<div style="padding:4px 0;">'
+                            f'<span style="color:{color}; font-weight:700;">{status}</span> '
+                            f'<strong>{rule.rule_name}</strong>: {rule.description}<br>'
+                            f'<span style="color:#aaa; font-size:0.85rem;">{rule.detail}</span></div>',
+                            unsafe_allow_html=True,
+                        )
+
+            # Fibonacci Wave Relationships (expandable)
+            fibs = getattr(elliott_result, "fib_relationships", [])
+            if fibs:
+                with st.expander("Fibonacci Wave Relationships"):
+                    for fib in fibs:
+                        deviation_pct = fib.deviation * 100
+                        quality = "Excellent" if deviation_pct < 3 else (
+                            "Good" if deviation_pct < 8 else "Approximate"
+                        )
+                        st.markdown(
+                            f"- **{fib.description}**: {fib.actual_ratio:.3f} "
+                            f"(ideal: {fib.ideal_ratio:.3f}, {quality})"
+                        )
+                    st.markdown(f"**Fibonacci Alignment Score: {getattr(elliott_result, 'fib_score', 0):.0f}/100**")
+
+            # Projections
+            projections = getattr(elliott_result, "projections", [])
+            if projections:
+                st.markdown("#### Where could the price go next?")
+                for proj in projections[:3]:
+                    conf_icon = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(
+                        getattr(proj, "confidence", ""), "⚪"
+                    )
+                    st.markdown(
+                        f'{conf_icon} **{proj.label}** — **₹{proj.price:,.2f}** '
+                        f'&nbsp; <span style="color:#888; font-size:0.85rem;">'
+                        f'Probability: {getattr(proj, "confidence", "")}</span>',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"    {getattr(proj, 'meaning', '')}")
+                st.markdown("")
+
+            # Warnings (prominent)
+            st.markdown("---")
+            for w in getattr(elliott_result, "warnings", []):
+                st.warning(w)
+
+            # Disclaimer
+            st.markdown("---")
+            st.caption(
+                "Disclaimer: Elliott Wave analysis is subjective and should not be the sole basis "
+                "for investment decisions. This is an automated pattern detection tool — professional "
+                "analysts may arrive at different wave counts. Always use stop losses and consult "
+                "a qualified financial advisor."
+            )
+        else:
+            st.info(
+                "No clear Elliott Wave pattern detected in the current timeframe. "
+                "This is normal — Elliott Wave patterns require well-defined swing structure "
+                "and not all price action forms identifiable wave counts."
+            )
+
+    # ─── Tab 6: Final Verdict ────────────────────────────────────────────
+    with tab6:
         st.markdown("### Final Verdict")
         st.caption(f"Based on {tf_config['label']} technical analysis")
 

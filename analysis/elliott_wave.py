@@ -105,6 +105,16 @@ class ElliottWaveResult:
     warnings: list = field(default_factory=list)
 
 
+@dataclass
+class ElliottWaveVerdict:
+    """Standalone verdict based solely on Elliott Wave analysis."""
+    recommendation: str = "No Signal"   # Bullish / Caution / Wait / Bearish / No Signal
+    confidence: float = 0.0
+    confidence_label: str = "N/A"
+    headline: str = ""                  # e.g. "Rally may be ending"
+    rationale: str = ""                 # 1-2 sentence explanation
+
+
 # ─── Swing Sequence Builder ─────────────────────────────────────────────────
 
 def _build_swing_sequence(swing_highs: list, swing_lows: list) -> list:
@@ -661,6 +671,195 @@ def _generate_summary(result: ElliottWaveResult) -> str:
         summary += f"Most likely next target: **₹{top_proj.price:,.0f}**."
 
     return summary
+
+
+# ─── Elliott Wave Verdict ───────────────────────────────────────────────────
+
+def derive_elliott_verdict(result) -> ElliottWaveVerdict:
+    """
+    Derive a standalone verdict based solely on Elliott Wave analysis.
+
+    Maps wave type + current wave + progress to a recommendation.
+    """
+    verdict = ElliottWaveVerdict()
+
+    if result is None or not getattr(result, "detected", False):
+        verdict.headline = "No Elliott Wave pattern detected"
+        verdict.rationale = (
+            "The current price action does not form a recognizable wave structure. "
+            "This is normal — not all timeframes produce identifiable wave counts."
+        )
+        return verdict
+
+    wave_type = getattr(result, "wave_type", "")
+    wave = getattr(result, "current_wave", "")
+    progress = getattr(result, "current_wave_progress", "mid")
+    conf_label = getattr(result, "confidence_label", "Speculative")
+    all_rules_pass = getattr(result, "all_rules_pass", False)
+
+    verdict.confidence = getattr(result, "confidence", 0)
+    verdict.confidence_label = conf_label
+
+    # ── Impulse Up ──────────────────────────────────────────────────────
+    if wave_type == "impulse_up":
+        if not all_rules_pass:
+            verdict.recommendation = "No Signal"
+            verdict.headline = "Bullish impulse detected but cardinal rules violated"
+            verdict.rationale = (
+                "The wave count does not satisfy all 3 cardinal rules, making it unreliable. "
+                "Wait for a clearer pattern before acting."
+            )
+            return verdict
+
+        if wave in ("1",):
+            verdict.recommendation = "Bullish"
+            verdict.headline = "New uptrend may be forming"
+            verdict.rationale = "Wave 1 suggests a new bullish impulse is starting. Early stage — wait for Wave 2 pullback for a better entry."
+        elif wave in ("2",):
+            verdict.recommendation = "Bullish"
+            verdict.headline = "Pullback in progress — potential entry opportunity"
+            verdict.rationale = "Wave 2 retracement offers a high-probability entry point. The trend is intact and Wave 3 (usually the strongest) is next."
+        elif wave in ("3",):
+            if progress == "late":
+                verdict.recommendation = "Bullish"
+                verdict.headline = "Wave 3 nearing completion, trend still strong"
+                verdict.rationale = "The strongest wave is approaching its end. Trend remains bullish but expect a consolidation (Wave 4) soon."
+            else:
+                verdict.recommendation = "Bullish"
+                verdict.headline = "Strongest wave in progress — momentum phase"
+                verdict.rationale = "Wave 3 is typically the longest and strongest. Price has strong upward momentum with likely more room to run."
+        elif wave in ("4",):
+            verdict.recommendation = "Bullish"
+            verdict.headline = "Healthy consolidation — trend intact"
+            verdict.rationale = "Wave 4 is a normal pullback within the uptrend. One more push higher (Wave 5) is expected before the trend completes."
+        elif wave in ("5",):
+            if progress == "early":
+                verdict.recommendation = "Caution"
+                verdict.headline = "Final push beginning — late-stage rally"
+                verdict.rationale = "Wave 5 is the last leg up. The rally still has room but is in its final stage. Consider tightening stop losses."
+            else:
+                verdict.recommendation = "Caution"
+                verdict.headline = "Rally may be ending — consider reducing exposure"
+                verdict.rationale = "Wave 5 is nearing completion. A significant correction (A-B-C) typically follows. Not the time to add new positions."
+        else:
+            verdict.recommendation = "Bullish"
+            verdict.headline = "Bullish impulse wave in progress"
+            verdict.rationale = "An upward 5-wave pattern is developing. The overall trend is bullish."
+
+    # ── Impulse Down ────────────────────────────────────────────────────
+    elif wave_type == "impulse_down":
+        if not all_rules_pass:
+            verdict.recommendation = "No Signal"
+            verdict.headline = "Bearish impulse detected but cardinal rules violated"
+            verdict.rationale = (
+                "The wave count does not satisfy all 3 cardinal rules, making it unreliable. "
+                "Wait for a clearer pattern before acting."
+            )
+            return verdict
+
+        if wave in ("1", "2"):
+            verdict.recommendation = "Bearish"
+            verdict.headline = "Downtrend forming"
+            verdict.rationale = "Early stages of a bearish impulse. The decline is likely to accelerate in Wave 3. Avoid buying."
+        elif wave in ("3",):
+            if progress == "late":
+                verdict.recommendation = "Bearish"
+                verdict.headline = "Decline wave nearing completion"
+                verdict.rationale = "The strongest selling wave is approaching its end. Expect a temporary bounce (Wave 4) but the downtrend is not over."
+            else:
+                verdict.recommendation = "Bearish"
+                verdict.headline = "Strongest decline in progress"
+                verdict.rationale = "Wave 3 down is typically the most aggressive. Selling pressure is intense — avoid catching the falling knife."
+        elif wave in ("4",):
+            verdict.recommendation = "Bearish"
+            verdict.headline = "Temporary bounce in downtrend"
+            verdict.rationale = "Wave 4 is a relief rally within the downtrend. One more leg down (Wave 5) is expected. Do not mistake this for a reversal."
+        elif wave in ("5",):
+            if progress == "early":
+                verdict.recommendation = "Caution"
+                verdict.headline = "Final decline beginning — nearing bottom"
+                verdict.rationale = "Wave 5 is the last leg down. The decline is approaching its end but has not completed yet."
+            else:
+                verdict.recommendation = "Wait"
+                verdict.headline = "Decline may be ending — wait for reversal confirmation"
+                verdict.rationale = "Wave 5 down is near completion. A significant rally may follow but wait for confirmation before buying."
+        else:
+            verdict.recommendation = "Bearish"
+            verdict.headline = "Bearish impulse wave in progress"
+            verdict.rationale = "A downward 5-wave pattern is developing. The overall trend is bearish."
+
+    # ── Corrective ──────────────────────────────────────────────────────
+    elif wave_type == "corrective":
+        trend_dir = getattr(result, "trend_direction", "")
+        # Corrective after uptrend (bearish correction)
+        if trend_dir == "bearish":
+            if wave in ("A",):
+                verdict.recommendation = "Wait"
+                verdict.headline = "Correction in progress — avoid buying the dip"
+                verdict.rationale = "Wave A marks the start of a correction. The decline has further to go. Wait for the correction to complete."
+            elif wave in ("B",):
+                verdict.recommendation = "Caution"
+                verdict.headline = "Bounce within correction — likely a trap"
+                verdict.rationale = "Wave B rallies often look convincing but are temporary. Another leg down (Wave C) is expected. Do not chase this bounce."
+            elif wave in ("C",):
+                if progress == "late":
+                    verdict.recommendation = "Bullish"
+                    verdict.headline = "Correction nearing end — watch for reversal"
+                    verdict.rationale = "Wave C is approaching completion. The correction is nearly over and a new uptrend may begin. Watch for bullish reversal signals."
+                else:
+                    verdict.recommendation = "Wait"
+                    verdict.headline = "Final correction leg — wait for completion"
+                    verdict.rationale = "Wave C is the last leg of the correction. Prices are still falling. Wait for it to complete before considering entry."
+            elif wave in ("C+",):
+                verdict.recommendation = "Bullish"
+                verdict.headline = "Correction nearing end — watch for reversal"
+                verdict.rationale = "The corrective wave has extended beyond typical levels. A reversal to the upside is increasingly likely."
+            else:
+                verdict.recommendation = "Wait"
+                verdict.headline = "Correction in progress"
+                verdict.rationale = "An A-B-C corrective pattern is developing. Wait for the correction to complete before making decisions."
+        # Corrective after downtrend (bullish correction / relief rally)
+        else:
+            if wave in ("A",):
+                verdict.recommendation = "Caution"
+                verdict.headline = "Relief rally in progress — may not last"
+                verdict.rationale = "Wave A up is a bounce within a larger downtrend. This rally may be short-lived."
+            elif wave in ("B",):
+                verdict.recommendation = "Wait"
+                verdict.headline = "Pullback within relief rally"
+                verdict.rationale = "Wave B is a dip within the corrective bounce. One more leg up (Wave C) may follow before the downtrend resumes."
+            elif wave in ("C",):
+                if progress == "late":
+                    verdict.recommendation = "Bearish"
+                    verdict.headline = "Relief rally nearing end — downtrend may resume"
+                    verdict.rationale = "Wave C is approaching completion. The corrective bounce is nearly over and prices may resume declining."
+                else:
+                    verdict.recommendation = "Caution"
+                    verdict.headline = "Final rally leg in correction"
+                    verdict.rationale = "Wave C is the last leg of the corrective bounce. Enjoy the ride but prepare for the downtrend to resume."
+            elif wave in ("C+",):
+                verdict.recommendation = "Bearish"
+                verdict.headline = "Relief rally nearing end — downtrend may resume"
+                verdict.rationale = "The corrective bounce has extended. The underlying downtrend is likely to reassert itself soon."
+            else:
+                verdict.recommendation = "Caution"
+                verdict.headline = "Corrective bounce in progress"
+                verdict.rationale = "An A-B-C corrective bounce is developing within a larger downtrend."
+
+    # ── Fallback ────────────────────────────────────────────────────────
+    else:
+        verdict.headline = "Unrecognized wave pattern"
+        verdict.rationale = "The detected pattern could not be mapped to a clear recommendation."
+
+    # ── Confidence modifiers ────────────────────────────────────────────
+    if conf_label == "Speculative" and verdict.recommendation in ("Bullish", "Bearish"):
+        verdict.recommendation = "Caution"
+        verdict.headline += " (speculative count)"
+        verdict.rationale += " Note: This wave count has very low confidence — treat as speculative only."
+    elif conf_label == "Low":
+        verdict.headline += " (low confidence)"
+
+    return verdict
 
 
 # ─── Public Entry Point ─────────────────────────────────────────────────────
