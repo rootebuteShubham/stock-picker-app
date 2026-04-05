@@ -19,6 +19,33 @@ from config import settings
 from analysis.market_structure import find_swing_points
 
 
+# ─── Defaults (resilient to settings cache on Streamlit Cloud) ──────────────
+
+_DEFAULTS = {
+    "ELLIOTT_SWING_WINDOW": 5,
+    "ELLIOTT_MIN_SWING_POINTS": 6,
+    "ELLIOTT_W2_RETRACEMENT": [0.382, 0.500, 0.618, 0.764],
+    "ELLIOTT_W3_EXTENSION": [1.382, 1.618, 2.000, 2.618],
+    "ELLIOTT_W4_RETRACEMENT": [0.236, 0.382, 0.500],
+    "ELLIOTT_W5_RELATIVE_W1": [0.618, 1.000, 1.618],
+    "ELLIOTT_WB_RETRACEMENT": [0.382, 0.500, 0.618],
+    "ELLIOTT_WC_RELATIVE_WA": [0.618, 1.000, 1.618],
+    "ELLIOTT_FIB_TOLERANCE": 0.15,
+    "ELLIOTT_CONFIDENCE_FIB_WEIGHT": 0.50,
+    "ELLIOTT_CONFIDENCE_STRUCTURE_WEIGHT": 0.30,
+    "ELLIOTT_CONFIDENCE_CLARITY_WEIGHT": 0.20,
+    "ELLIOTT_CONFIDENCE_HIGH": 75,
+    "ELLIOTT_CONFIDENCE_MODERATE": 55,
+    "ELLIOTT_CONFIDENCE_LOW": 35,
+    "ELLIOTT_SWING_WINDOW_OVERRIDES": {"Hourly": 3, "Daily": 5, "Weekly": 5, "Monthly": 4},
+}
+
+
+def _s(name):
+    """Get setting with fallback to built-in default."""
+    return getattr(settings, name, _DEFAULTS[name])
+
+
 # ─── Data Structures ────────────────────────────────────────────────────────
 
 @dataclass
@@ -200,7 +227,7 @@ def _score_fibonacci_alignment(points: list, direction: str) -> tuple:
     """
     p = [pt[1] for pt in points]
     relationships = []
-    tolerance = settings.ELLIOTT_FIB_TOLERANCE
+    tolerance = _s("ELLIOTT_FIB_TOLERANCE")
 
     # Wave lengths
     w1_len = abs(p[1] - p[0])
@@ -212,14 +239,14 @@ def _score_fibonacci_alignment(points: list, direction: str) -> tuple:
 
     # 1. Wave 2 retracement of Wave 1
     w2_retrace = abs(p[2] - p[1]) / w1_len
-    ideal, dev = _nearest_fib(w2_retrace, settings.ELLIOTT_W2_RETRACEMENT)
+    ideal, dev = _nearest_fib(w2_retrace, _s("ELLIOTT_W2_RETRACEMENT"))
     relationships.append(FibRelationship(
         "Wave 2 retracement of Wave 1", w2_retrace, ideal, dev,
     ))
 
     # 2. Wave 3 extension of Wave 1
     w3_ext = w3_len / w1_len
-    ideal, dev = _nearest_fib(w3_ext, settings.ELLIOTT_W3_EXTENSION)
+    ideal, dev = _nearest_fib(w3_ext, _s("ELLIOTT_W3_EXTENSION"))
     relationships.append(FibRelationship(
         "Wave 3 extension of Wave 1", w3_ext, ideal, dev,
     ))
@@ -227,14 +254,14 @@ def _score_fibonacci_alignment(points: list, direction: str) -> tuple:
     # 3. Wave 4 retracement of Wave 3
     if w3_len > 0:
         w4_retrace = abs(p[4] - p[3]) / w3_len
-        ideal, dev = _nearest_fib(w4_retrace, settings.ELLIOTT_W4_RETRACEMENT)
+        ideal, dev = _nearest_fib(w4_retrace, _s("ELLIOTT_W4_RETRACEMENT"))
         relationships.append(FibRelationship(
             "Wave 4 retracement of Wave 3", w4_retrace, ideal, dev,
         ))
 
     # 4. Wave 5 relative to Wave 1
     w5_rel = w5_len / w1_len
-    ideal, dev = _nearest_fib(w5_rel, settings.ELLIOTT_W5_RELATIVE_W1)
+    ideal, dev = _nearest_fib(w5_rel, _s("ELLIOTT_W5_RELATIVE_W1"))
     relationships.append(FibRelationship(
         "Wave 5 relative to Wave 1", w5_rel, ideal, dev,
     ))
@@ -257,7 +284,7 @@ def _score_corrective_fibonacci(points: list, direction: str) -> tuple:
     """
     p = [pt[1] for pt in points]
     relationships = []
-    tolerance = settings.ELLIOTT_FIB_TOLERANCE
+    tolerance = _s("ELLIOTT_FIB_TOLERANCE")
 
     wa_len = abs(p[1] - p[0])
     if wa_len == 0:
@@ -265,7 +292,7 @@ def _score_corrective_fibonacci(points: list, direction: str) -> tuple:
 
     # Wave B retracement of Wave A
     wb_retrace = abs(p[2] - p[1]) / wa_len
-    ideal, dev = _nearest_fib(wb_retrace, settings.ELLIOTT_WB_RETRACEMENT)
+    ideal, dev = _nearest_fib(wb_retrace, _s("ELLIOTT_WB_RETRACEMENT"))
     relationships.append(FibRelationship(
         "Wave B retracement of Wave A", wb_retrace, ideal, dev,
     ))
@@ -273,7 +300,7 @@ def _score_corrective_fibonacci(points: list, direction: str) -> tuple:
     # Wave C relative to Wave A
     wc_len = abs(p[3] - p[2])
     wc_rel = wc_len / wa_len
-    ideal, dev = _nearest_fib(wc_rel, settings.ELLIOTT_WC_RELATIVE_WA)
+    ideal, dev = _nearest_fib(wc_rel, _s("ELLIOTT_WC_RELATIVE_WA"))
     relationships.append(FibRelationship(
         "Wave C relative to Wave A", wc_rel, ideal, dev,
     ))
@@ -560,11 +587,11 @@ def _compute_confidence(fib_score: float, all_rules_pass: bool,
     Returns: (confidence 0-100, label str)
     """
     # Fibonacci alignment: 50% weight
-    fib_component = fib_score * settings.ELLIOTT_CONFIDENCE_FIB_WEIGHT
+    fib_component = fib_score * _s("ELLIOTT_CONFIDENCE_FIB_WEIGHT")
 
     # Structure clarity: 30% weight — more swing points = better defined
     structure = min(100, (num_points / 8) * 100)
-    structure_component = structure * settings.ELLIOTT_CONFIDENCE_STRUCTURE_WEIGHT
+    structure_component = structure * _s("ELLIOTT_CONFIDENCE_STRUCTURE_WEIGHT")
 
     # Wave type clarity: 20% weight
     if wave_type == "impulse" and all_rules_pass:
@@ -573,16 +600,16 @@ def _compute_confidence(fib_score: float, all_rules_pass: bool,
         clarity = 70
     else:
         clarity = 40
-    clarity_component = clarity * settings.ELLIOTT_CONFIDENCE_CLARITY_WEIGHT
+    clarity_component = clarity * _s("ELLIOTT_CONFIDENCE_CLARITY_WEIGHT")
 
     confidence = fib_component + structure_component + clarity_component
     confidence = round(min(95, confidence), 1)  # Cap at 95 — never claim certainty
 
-    if confidence >= settings.ELLIOTT_CONFIDENCE_HIGH:
+    if confidence >= _s("ELLIOTT_CONFIDENCE_HIGH"):
         label = "High"
-    elif confidence >= settings.ELLIOTT_CONFIDENCE_MODERATE:
+    elif confidence >= _s("ELLIOTT_CONFIDENCE_MODERATE"):
         label = "Moderate"
-    elif confidence >= settings.ELLIOTT_CONFIDENCE_LOW:
+    elif confidence >= _s("ELLIOTT_CONFIDENCE_LOW"):
         label = "Low"
     else:
         label = "Speculative"
@@ -647,8 +674,8 @@ def analyze(df: pd.DataFrame, trend: str = "",
         return result
 
     # Use timeframe-specific swing window
-    swing_window = settings.ELLIOTT_SWING_WINDOW_OVERRIDES.get(
-        timeframe, settings.ELLIOTT_SWING_WINDOW
+    swing_window = _s("ELLIOTT_SWING_WINDOW_OVERRIDES").get(
+        timeframe, _s("ELLIOTT_SWING_WINDOW")
     )
 
     # Step 1: Get swing points
@@ -657,10 +684,11 @@ def analyze(df: pd.DataFrame, trend: str = "",
     # Step 2: Build alternating sequence
     sequence = _build_swing_sequence(swing_highs, swing_lows)
 
-    if len(sequence) < settings.ELLIOTT_MIN_SWING_POINTS:
+    min_points = _s("ELLIOTT_MIN_SWING_POINTS")
+    if len(sequence) < min_points:
         result.summary = (
             f"Only {len(sequence)} swing points detected (need at least "
-            f"{settings.ELLIOTT_MIN_SWING_POINTS}). Not enough structure for wave counting."
+            f"{min_points}). Not enough structure for wave counting."
         )
         return result
 
@@ -733,7 +761,7 @@ def analyze(df: pd.DataFrame, trend: str = "",
             )
 
     # Add low-confidence warning
-    if result.detected and result.confidence < settings.ELLIOTT_CONFIDENCE_MODERATE:
+    if result.detected and result.confidence < _s("ELLIOTT_CONFIDENCE_MODERATE"):
         result.warnings.append(
             "Low confidence count — treat as speculative only. "
             "Do not base trading decisions solely on this wave count."
