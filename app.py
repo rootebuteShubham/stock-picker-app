@@ -487,7 +487,7 @@ if "stock_data" in st.session_state:
                         f'Probability: {proj.confidence}</span>',
                         unsafe_allow_html=True,
                     )
-                    st.caption(f"    {proj.meaning}")
+                    st.caption(f"    {getattr(proj, 'meaning', '')}")
                 st.markdown("")
 
             # Warnings
