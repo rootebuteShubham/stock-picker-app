@@ -17,7 +17,11 @@ from analysis.fundamental import analyze as analyze_fundamentals
 from analysis.technical import analyze as analyze_technicals
 from analysis.candlestick_patterns import detect_all_patterns, score_candlestick_signals, get_recent_signals
 from analysis.market_structure import identify_trend, find_support_resistance, compute_fibonacci_levels
-from analysis.elliott_wave import analyze as analyze_elliott_wave, derive_elliott_verdict
+from analysis.elliott_wave import analyze as analyze_elliott_wave
+try:
+    from analysis.elliott_wave import derive_elliott_verdict
+except ImportError:
+    derive_elliott_verdict = lambda result: None
 from analysis.verdict import generate_verdict
 from ui.styles import inject_css
 from ui.components import (
