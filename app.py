@@ -38,10 +38,17 @@ from ui.components import (
     render_news,
     render_holders_table,
     render_elliott_verdict_banner,
-    render_advanced_levels_verdict_banner,
-    render_advanced_levels_table,
-    render_index_context_table,
 )
+try:
+    from ui.components import (
+        render_advanced_levels_verdict_banner,
+        render_advanced_levels_table,
+        render_index_context_table,
+    )
+except ImportError:
+    render_advanced_levels_verdict_banner = lambda *a, **kw: None
+    render_advanced_levels_table = lambda *a, **kw: None
+    render_index_context_table = lambda *a, **kw: None
 from ui.charts import (
     build_candlestick_chart,
     build_rsi_macd_chart,
