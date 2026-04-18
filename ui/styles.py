@@ -150,6 +150,30 @@ CUSTOM_CSS = """
         color: #aaa;
         font-size: 0.9rem;
     }
+    /* Advanced Levels Verdict Banner */
+    .al-verdict-banner { border-radius: 16px; padding: 24px 32px; text-align: center; margin: 16px 0; }
+    .al-verdict-banner.strong-support { background: linear-gradient(135deg, #004d25, #00C853); color: white; }
+    .al-verdict-banner.support { background: linear-gradient(135deg, #2e7d32, #66BB6A); color: white; }
+    .al-verdict-banner.neutral { background: linear-gradient(135deg, #e65100, #FFC107); color: white; }
+    .al-verdict-banner.resistance { background: linear-gradient(135deg, #c62828, #FF5252); color: white; }
+    .al-verdict-banner.strong-resistance { background: linear-gradient(135deg, #4a0000, #FF1744); color: white; }
+    .al-verdict-banner h2 { margin: 0; font-size: 1.8rem; }
+    .al-verdict-banner .al-score { font-size: 1rem; opacity: 0.9; margin-top: 6px; }
+    .al-verdict-banner .al-summary { font-size: 0.85rem; opacity: 0.8; margin-top: 8px; font-style: italic; }
+
+    /* Advanced Levels MA Card */
+    .al-level-card { background: #1e1e2e; border-radius: 10px; padding: 12px 16px; text-align: center; border: 1px solid #333; margin: 4px 0; }
+    .al-level-card .al-tf { font-size: 0.75rem; color: #aaa; text-transform: uppercase; }
+    .al-level-card .al-value { font-size: 1.1rem; font-weight: 700; margin: 4px 0; }
+    .al-level-card .al-group { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; }
+    .al-level-card .al-group.l1 { background: #78909C; color: white; }
+    .al-level-card .al-group.l2 { background: #E91E63; color: white; }
+    .al-level-card .al-group.l3 { background: #7C4DFF; color: white; }
+    .al-level-card .al-pos { font-size: 0.8rem; margin-top: 4px; }
+    .al-level-card .al-pos.support { color: #00C853; }
+    .al-level-card .al-pos.resistance { color: #FF1744; }
+    .al-level-card .al-pos.near { color: #FFC107; }
+
     /* Elliott Wave Verdict Banner */
     .ew-verdict-banner {
         border-radius: 16px;

@@ -36,11 +36,12 @@ def generate_verdict(
     user_buy_price: float = 0,
     selected_timeframe: str = "Daily",
     elliott_result=None,
+    advanced_levels_result=None,
 ) -> FinalVerdict:
     """
     Generate final Buy/Sell/Hold recommendation.
 
-    Weighting: 50% fundamental + 35% technical + 15% candlestick/structure.
+    Weighting: 45% fundamental + 30% technical + 15% candlestick + 10% advanced levels.
     """
     verdict = FinalVerdict()
 
@@ -52,10 +53,16 @@ def generate_verdict(
     candle_raw = candlestick_score.get("score", 0)
     candle_score = (candle_raw + 100) / 2  # Maps [-100,100] to [0,100]
 
+    # Advanced Levels score (0-100), default to neutral if unavailable
+    adv_score = 50.0
+    if advanced_levels_result and getattr(advanced_levels_result, "detected", False):
+        adv_score = getattr(advanced_levels_result, "normalized_score", 50.0)
+
     composite = (
         fund_score * settings.WEIGHT_FUNDAMENTAL
         + tech_score * settings.WEIGHT_TECHNICAL
         + candle_score * settings.WEIGHT_CANDLESTICK
+        + adv_score * getattr(settings, "WEIGHT_ADVANCED_LEVELS", 0.10)
     )
     verdict.composite_score = composite
 
@@ -171,6 +178,14 @@ def generate_verdict(
         verdict.reasoning.append(f"Key Support: ₹{support_levels[0]:,.0f}")
     if resistance_levels:
         verdict.reasoning.append(f"Key Resistance: ₹{resistance_levels[0]:,.0f}")
+
+    # Advanced Levels context
+    if advanced_levels_result and getattr(advanced_levels_result, "detected", False):
+        al_verdict = getattr(advanced_levels_result, "verdict", "Neutral")
+        al_summary = getattr(advanced_levels_result, "summary", "")
+        verdict.reasoning.append(
+            f"Advanced Levels ({adv_score:.0f}/100): {al_verdict} — {al_summary}"
+        )
 
     # Elliott Wave context (informational only — NOT scored)
     if elliott_result and getattr(elliott_result, "detected", False):

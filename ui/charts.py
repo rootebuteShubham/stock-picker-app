@@ -22,6 +22,7 @@ def build_candlestick_chart(
     fib_levels: dict = None,
     timeframe_label: str = "1D",
     elliott_wave=None,
+    advanced_levels=None,
 ) -> go.Figure:
     """Build interactive candlestick chart with overlays."""
     fig = make_subplots(
@@ -132,6 +133,10 @@ def build_candlestick_chart(
     if elliott_wave and elliott_wave.detected:
         _add_elliott_wave_overlay(fig, elliott_wave)
 
+    # Advanced Levels overlay
+    if advanced_levels and getattr(advanced_levels, "detected", False):
+        _add_advanced_levels_overlay(fig, advanced_levels)
+
     # Volume bars
     if "volume" in df.columns:
         colors = ["#00C853" if c >= o else "#FF1744" for c, o in zip(df["close"], df["open"])]
@@ -239,6 +244,70 @@ def _add_elliott_wave_overlay(fig: go.Figure, elliott_wave) -> None:
             annotation_font_color=wave_color,
             opacity=0.6,
         )
+
+
+def _add_advanced_levels_overlay(fig, advanced_levels):
+    """Add multi-timeframe MA level lines to the candlestick chart."""
+    # Color and style per group
+    group_styles = {
+        "L1": {"color": "#78909C", "width": 1, "dash": "dot"},
+        "L2": {"color": "#E91E63", "width": 1.2, "dash": "dash"},
+        "L3": {"color": "#7C4DFF", "width": 1.5, "dash": "dash"},
+    }
+    tf_short = {
+        "15min": "15m", "30min": "30m", "1h": "1H",
+        "Daily": "D", "Weekly": "W", "Monthly": "M",
+    }
+
+    # Stock MA levels
+    stock_levels = getattr(advanced_levels, "stock_levels", [])
+    for level in stock_levels:
+        group = getattr(level, "group", "L1")
+        ma_val = getattr(level, "ma_value", 0)
+        tf = getattr(level, "timeframe", "")
+        if ma_val <= 0:
+            continue
+
+        style = group_styles.get(group, group_styles["L1"])
+        tf_label = tf_short.get(tf, tf)
+
+        fig.add_hline(
+            y=ma_val, row=1, col=1,
+            line=dict(color=style["color"], width=style["width"], dash=style["dash"]),
+            annotation_text=f"{group} {tf_label} MA144: {ma_val:,.0f}",
+            annotation_position="top right",
+            annotation_font_size=8,
+            annotation_font_color=style["color"],
+            opacity=0.7,
+        )
+
+    # Envelope levels
+    envelope = getattr(advanced_levels, "envelope", None)
+    if envelope is not None:
+        env_upper = getattr(envelope, "upper", 0)
+        env_lower = getattr(envelope, "lower", 0)
+        env_color = "#FF6D00"
+
+        if env_upper > 0:
+            fig.add_hline(
+                y=env_upper, row=1, col=1,
+                line=dict(color=env_color, width=1, dash="dashdot"),
+                annotation_text=f"Env Upper: {env_upper:,.0f}",
+                annotation_position="bottom right",
+                annotation_font_size=8,
+                annotation_font_color=env_color,
+                opacity=0.6,
+            )
+        if env_lower > 0:
+            fig.add_hline(
+                y=env_lower, row=1, col=1,
+                line=dict(color=env_color, width=1, dash="dashdot"),
+                annotation_text=f"Env Lower: {env_lower:,.0f}",
+                annotation_position="top right",
+                annotation_font_size=8,
+                annotation_font_color=env_color,
+                opacity=0.6,
+            )
 
 
 def build_rsi_macd_chart(

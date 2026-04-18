@@ -92,9 +92,10 @@ FALSE_BREAKOUT_LOOKFORWARD = 2  # Check next 2 candles after inside bar
 
 # ─── Scoring Weights ──────────────────────────────────────────────────────────
 
-WEIGHT_FUNDAMENTAL = 0.50
-WEIGHT_TECHNICAL = 0.35
+WEIGHT_FUNDAMENTAL = 0.45
+WEIGHT_TECHNICAL = 0.30
 WEIGHT_CANDLESTICK = 0.15
+WEIGHT_ADVANCED_LEVELS = 0.10
 
 # Verdict thresholds (on normalized 0-100 scale)
 VERDICT_STRONG_BUY = 75
@@ -184,3 +185,40 @@ ELLIOTT_SWING_WINDOW_OVERRIDES = {
     "Weekly": 5,
     "Monthly": 4,
 }
+
+# ─── Advanced Levels with MA ────────────────────────────────────────────────
+
+ADV_LEVELS_MA_LENGTH = 144                     # Fibonacci MA period
+ADV_LEVELS_ADJUSTABLE_RATIO = 1.272            # Fibonacci extension for envelope
+ADV_LEVELS_ATR_PERIOD = 14                     # ATR period for envelope calculation
+
+# Timeframe definitions for multi-timeframe MA computation
+ADV_LEVELS_TIMEFRAMES = {
+    "15min":   {"period": "1mo",  "interval": "15m"},
+    "30min":   {"period": "1mo",  "interval": "30m"},
+    "1h":      {"period": "3mo",  "interval": "1h"},
+    "Daily":   {"period": "2y",   "interval": "1d"},
+    "Weekly":  {"period": "10y",  "interval": "1wk"},
+    "Monthly": {"period": "max",  "interval": "1mo"},
+}
+
+# Level grouping: L1=short-term, L2=medium-term, L3=long-term
+ADV_LEVELS_L1_TIMEFRAMES = ["15min", "30min"]
+ADV_LEVELS_L2_TIMEFRAMES = ["1h", "Daily"]
+ADV_LEVELS_L3_TIMEFRAMES = ["Weekly", "Monthly"]
+
+# Reference indices (yfinance tickers)
+ADV_LEVELS_REFERENCE_INDICES = {
+    "NIFTY 50":          "^NSEI",
+    "BANK NIFTY":        "^NSEBANK",
+    "NIFTY FIN SERVICE": "NIFTY_FIN_SERVICE.NS",
+    "NIFTY MIDCAP SEL":  "NIFTYMIDSELECT.NS",
+    "INDIA VIX":         "^INDIAVIX",
+}
+
+# Proximity: fraction of price within which a level counts as "near"
+ADV_LEVELS_PROXIMITY_PCT = 0.02                # 2%
+
+# Clustering: bonus when multiple levels converge near current price
+ADV_LEVELS_CLUSTER_BONUS = 8
+ADV_LEVELS_CLUSTER_THRESHOLD = 3               # min levels within proximity to trigger

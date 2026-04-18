@@ -22,6 +22,10 @@ try:
     from analysis.elliott_wave import derive_elliott_verdict
 except ImportError:
     derive_elliott_verdict = lambda result: None
+try:
+    from analysis.advanced_levels import analyze as analyze_advanced_levels
+except ImportError:
+    analyze_advanced_levels = lambda ticker, current_price: None
 from analysis.verdict import generate_verdict
 from ui.styles import inject_css
 from ui.components import (
@@ -34,6 +38,9 @@ from ui.components import (
     render_news,
     render_holders_table,
     render_elliott_verdict_banner,
+    render_advanced_levels_verdict_banner,
+    render_advanced_levels_table,
+    render_index_context_table,
 )
 from ui.charts import (
     build_candlestick_chart,
@@ -198,8 +205,12 @@ if analyze_btn:
 
     elliott_verdict = derive_elliott_verdict(elliott_result)
 
+    current_price = stock_data.info.get("current_price") or stock_data.history["close"].iloc[-1]
+
+    with st.spinner("Computing Advanced Levels (multi-timeframe MA)..."):
+        adv_levels_result = analyze_advanced_levels(ticker, current_price)
+
     with st.spinner("Generating verdict..."):
-        current_price = stock_data.info.get("current_price") or stock_data.history["close"].iloc[-1]
         final_verdict = generate_verdict(
             fundamental_result,
             technical_result,
@@ -211,6 +222,7 @@ if analyze_btn:
             user_buy_price,
             selected_timeframe=selected_timeframe,
             elliott_result=elliott_result,
+            advanced_levels_result=adv_levels_result,
         )
 
     # Store in session state
@@ -228,6 +240,7 @@ if analyze_btn:
     st.session_state["tf_config"] = tf
     st.session_state["elliott_result"] = elliott_result
     st.session_state["elliott_verdict"] = elliott_verdict
+    st.session_state["adv_levels_result"] = adv_levels_result
 
 # ─── Display Results ─────────────────────────────────────────────────────────
 
@@ -246,6 +259,7 @@ if "stock_data" in st.session_state:
     tf_config = st.session_state.get("tf_config", settings.TIMEFRAME_OPTIONS["Daily"])
     elliott_result = st.session_state.get("elliott_result", None)
     elliott_verdict = st.session_state.get("elliott_verdict", None)
+    adv_levels_result = st.session_state.get("adv_levels_result", None)
 
     # Company header
     render_company_header(stock_data.info, stock_data.google_data)
@@ -257,12 +271,13 @@ if "stock_data" in st.session_state:
                 st.warning(err)
 
     # ─── Tabs ────────────────────────────────────────────────────────────
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "Overview",
         "Fundamental Analysis",
         "Technical Analysis",
         "Shareholding & Investors",
         "Elliott Wave",
+        "Advanced Levels",
         "Final Verdict",
     ])
 
@@ -584,8 +599,127 @@ if "stock_data" in st.session_state:
                 "and not all price action forms identifiable wave counts."
             )
 
-    # ─── Tab 6: Final Verdict ────────────────────────────────────────────
+    # ─── Tab 6: Advanced Levels ────────────────────────────────────────
     with tab6:
+        st.markdown("### Advanced Levels with MA")
+        st.caption("Multi-timeframe 144-period Moving Average analysis with reference index context")
+
+        if adv_levels_result and getattr(adv_levels_result, "detected", False):
+            # Verdict banner
+            render_advanced_levels_verdict_banner(adv_levels_result)
+
+            # Score + summary
+            al_col1, al_col2 = st.columns([1, 3])
+            with al_col1:
+                fig_gauge = build_score_gauge(
+                    getattr(adv_levels_result, "normalized_score", 50), "Adv. Levels"
+                )
+                st.plotly_chart(fig_gauge, use_container_width=True, key="al_gauge")
+            with al_col2:
+                st.markdown(getattr(adv_levels_result, "summary", ""))
+                sup_c = getattr(adv_levels_result, "support_count", 0)
+                res_c = getattr(adv_levels_result, "resistance_count", 0)
+                near_c = getattr(adv_levels_result, "near_count", 0)
+                st.markdown(
+                    f"**Support MAs:** {sup_c} | "
+                    f"**Resistance MAs:** {res_c} | "
+                    f"**Near:** {near_c}"
+                )
+                if getattr(adv_levels_result, "cluster_detected", False):
+                    st.info("Multiple MA levels cluster near current price — strong confluence zone detected")
+
+            st.markdown("---")
+
+            # Multi-timeframe MA level cards
+            st.markdown("### Multi-Timeframe 144-MA Levels")
+            render_advanced_levels_table(
+                getattr(adv_levels_result, "stock_levels", []), current_price
+            )
+
+            # Envelope levels
+            envelope = getattr(adv_levels_result, "envelope", None)
+            if envelope is not None:
+                st.markdown("---")
+                st.markdown("### Envelope Levels (1.272x ATR)")
+                ec1, ec2, ec3 = st.columns(3)
+                ec1.metric("Upper Envelope", f"₹{getattr(envelope, 'upper', 0):,.2f}")
+                ec2.metric("Daily 144-MA", f"₹{getattr(envelope, 'daily_ma', 0):,.2f}")
+                ec3.metric("Lower Envelope", f"₹{getattr(envelope, 'lower', 0):,.2f}")
+                st.caption(
+                    f"ATR(14): ₹{getattr(envelope, 'atr_value', 0):,.2f} | "
+                    f"Ratio: {getattr(envelope, 'ratio', 1.272)}"
+                )
+
+            # Price chart with Advanced Levels overlay
+            st.markdown("---")
+            st.markdown(f"### Price Chart with Advanced Levels — {tf_config['candle_label']} Candles")
+            fig_al = build_candlestick_chart(
+                stock_data.history,
+                patterns=patterns,
+                support_levels=sr_levels["support_levels"],
+                resistance_levels=sr_levels["resistance_levels"],
+                sma_20=technical_result.sma_20,
+                sma_50=technical_result.sma_50,
+                sma_200=technical_result.sma_200,
+                bb_upper=technical_result.bb_upper,
+                bb_lower=technical_result.bb_lower,
+                ema_21=technical_result.ema_21,
+                fib_levels=fib_levels,
+                timeframe_label=tf_config["candle_label"],
+                elliott_wave=elliott_result,
+                advanced_levels=adv_levels_result,
+            )
+            st.plotly_chart(fig_al, use_container_width=True, key="al_candlestick")
+
+            # Reference Index Context
+            st.markdown("---")
+            st.markdown("### Reference Index Context")
+            st.caption("144-period Daily MA position for major Indian market indices")
+            render_index_context_table(getattr(adv_levels_result, "index_levels", []))
+
+            # Market breadth summary
+            idx_bull = getattr(adv_levels_result, "index_bullish_count", 0)
+            idx_bear = getattr(adv_levels_result, "index_bearish_count", 0)
+            total_idx = idx_bull + idx_bear
+            if total_idx > 0:
+                if idx_bull > idx_bear:
+                    st.success(
+                        f"Broad market context: {idx_bull}/{total_idx} indices above "
+                        f"their 144-MA — bullish market environment"
+                    )
+                elif idx_bear > idx_bull:
+                    st.warning(
+                        f"Broad market context: {idx_bear}/{total_idx} indices below "
+                        f"their 144-MA — bearish market environment"
+                    )
+                else:
+                    st.info(
+                        f"Broad market context: Mixed — {idx_bull} indices above "
+                        f"and {idx_bear} below their 144-MA"
+                    )
+
+            # Errors
+            al_errors = getattr(adv_levels_result, "errors", [])
+            if al_errors:
+                with st.expander("Data fetch warnings"):
+                    for err in al_errors:
+                        st.warning(err)
+
+            st.markdown("---")
+            st.caption(
+                "Advanced Levels uses a 144-period (Fibonacci) Moving Average computed across "
+                "6 timeframes. L1 = short-term (15m, 30m), L2 = medium-term (1h, Daily), "
+                "L3 = long-term (Weekly, Monthly). Envelope levels use 1.272x ATR(14) "
+                "distance from the Daily 144-MA."
+            )
+        else:
+            st.info(
+                "Advanced Levels data could not be computed. This may be due to insufficient "
+                "historical data or network issues fetching multi-timeframe data."
+            )
+
+    # ─── Tab 7: Final Verdict ────────────────────────────────────────────
+    with tab7:
         st.markdown("### Final Verdict")
         st.caption(f"Based on {tf_config['label']} technical analysis")
 
@@ -613,17 +747,23 @@ if "stock_data" in st.session_state:
         # Score breakdown
         st.markdown("---")
         st.markdown("### Score Components")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             fig = build_score_gauge(fundamental_result.normalized_score, "Fundamental")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="gauge_fund")
         with col2:
             fig = build_score_gauge(technical_result.normalized_score, "Technical")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="gauge_tech")
         with col3:
             candle_normalized = (candle_score["score"] + 100) / 2
             fig = build_score_gauge(candle_normalized, "Candlestick")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="gauge_candle")
+        with col4:
+            al_score = 50.0
+            if adv_levels_result and getattr(adv_levels_result, "detected", False):
+                al_score = getattr(adv_levels_result, "normalized_score", 50.0)
+            fig = build_score_gauge(al_score, "Adv. Levels")
+            st.plotly_chart(fig, use_container_width=True, key="gauge_adv")
 
         st.markdown("---")
         st.caption(

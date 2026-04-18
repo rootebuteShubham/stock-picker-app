@@ -97,6 +97,90 @@ def render_verdict_banner(verdict):
     st.markdown(html, unsafe_allow_html=True)
 
 
+def render_advanced_levels_verdict_banner(al_result):
+    """Render the Advanced Levels standalone verdict banner."""
+    verdict_text = getattr(al_result, "verdict", "Neutral")
+    css_class = verdict_text.lower().replace(" ", "-")
+    score = getattr(al_result, "normalized_score", 50)
+    summary = getattr(al_result, "summary", "")
+
+    html = f"""
+    <div class="al-verdict-banner {css_class}">
+        <h2>{verdict_text}</h2>
+        <div class="al-score">Advanced Levels Score: {score:.0f}/100</div>
+        <div class="al-summary">{summary}</div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_advanced_levels_table(stock_levels, current_price):
+    """Render the multi-timeframe MA levels as styled cards."""
+    if not stock_levels:
+        st.info("No MA levels available.")
+        return
+
+    cols = st.columns(min(len(stock_levels), 6))
+    for i, level in enumerate(stock_levels[:6]):
+        tf = getattr(level, "timeframe", "?")
+        ma_val = getattr(level, "ma_value", 0)
+        group = getattr(level, "group", "L1").lower()
+        position = getattr(level, "position", "near")
+        dist = getattr(level, "distance_pct", 0) * 100
+
+        pos_arrow = {"support": "&#9650; Support", "resistance": "&#9660; Resistance", "near": "&#9644; Near"}.get(position, "?")
+
+        html = f"""
+        <div class="al-level-card">
+            <div class="al-tf">{tf}</div>
+            <div class="al-value">&#8377;{ma_val:,.2f}</div>
+            <div><span class="al-group {group}">{group.upper()}</span></div>
+            <div class="al-pos {position}">{pos_arrow} ({dist:.1f}%)</div>
+        </div>
+        """
+        cols[i % len(cols)].markdown(html, unsafe_allow_html=True)
+
+
+def render_index_context_table(index_levels):
+    """Render reference index MA context as styled info."""
+    if not index_levels:
+        st.info("No index data available.")
+        return
+
+    for idx in index_levels:
+        name = getattr(idx, "name", "Unknown")
+        fetched = getattr(idx, "fetched", False)
+        if not fetched:
+            st.caption(f"{name}: Data unavailable")
+            continue
+
+        ma_val = getattr(idx, "ma_value", 0)
+        cur_price = getattr(idx, "current_price", 0)
+        position = getattr(idx, "position", "")
+        dist = getattr(idx, "distance_pct", 0) * 100
+
+        if position == "above":
+            color = "#00C853"
+            icon = "&#9650;"
+        elif position == "below":
+            color = "#FF1744"
+            icon = "&#9660;"
+        else:
+            color = "#FFC107"
+            icon = "&#9644;"
+
+        st.markdown(
+            f'<div style="display:flex; justify-content:space-between; padding:6px 0; '
+            f'border-bottom:1px solid #333; font-size:0.9rem;">'
+            f'<span><strong>{name}</strong></span>'
+            f'<span>144-MA: &#8377;{ma_val:,.2f}</span>'
+            f'<span>Price: &#8377;{cur_price:,.2f}</span>'
+            f'<span style="color:{color};">{icon} {position.title()} ({dist:.1f}%)</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
 def render_elliott_verdict_banner(ew_verdict):
     """Render the Elliott Wave standalone verdict banner."""
     rec = getattr(ew_verdict, "recommendation", "No Signal")
